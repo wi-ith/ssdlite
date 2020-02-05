@@ -10,8 +10,6 @@ from tensorflow.contrib.framework.python.ops import arg_scope
 
 _WEIGHT_DECAY = 4e-5
 
-import numpy as np
-
 
 class MobileNetV2(object):
     def __init__(self, is_training=True, input_size=224):

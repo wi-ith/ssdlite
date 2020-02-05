@@ -19,6 +19,7 @@ import tensorflow as tf
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import cifar10
+import ssd_flags
 
 FLAGS = tf.app.flags.FLAGS
 

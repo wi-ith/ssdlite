@@ -87,7 +87,7 @@ import tensorflow as tf
 
 
 
-import cifar10_input
+import ssd_input
 
 
 
@@ -97,7 +97,7 @@ FLAGS = tf.app.flags.FLAGS
 
 # Basic model parameters.
 
-tf.app.flags.DEFINE_integer('batch_size', 128,
+tf.app.flags.DEFINE_integer('batch_size', 16,
 
                             """Number of images to process in a batch.""")
 
@@ -109,13 +109,13 @@ tf.app.flags.DEFINE_boolean('use_fp16', True,
 
 # Global constants describing the CIFAR-10 data set.
 
-IMAGE_SIZE = cifar10_input.IMAGE_SIZE
+IMAGE_SIZE = ssd_input.IMAGE_SIZE
 
-NUM_CLASSES = cifar10_input.NUM_CLASSES
+NUM_CLASSES = ssd_input.NUM_CLASSES
 
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = cifar10_input.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN
+NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = ssd_input.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN
 
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = cifar10_input.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
+NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = ssd_input.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
 
 
 
@@ -283,7 +283,7 @@ def distorted_inputs():
 
   """
 
-  images, labels = cifar10_input.distorted_inputs(batch_size=FLAGS.batch_size)
+  images, labels = ssd_input.distorted_inputs(batch_size=FLAGS.batch_size)
 
   if FLAGS.use_fp16:
 
@@ -315,7 +315,7 @@ def inputs(eval_data):
 
   """
 
-  images, labels = cifar10_input.inputs(eval_data=eval_data, batch_size=FLAGS.batch_size)
+  images, labels = ssd_input.inputs(eval_data=eval_data, batch_size=FLAGS.batch_size)
 
   if FLAGS.use_fp16:
 
