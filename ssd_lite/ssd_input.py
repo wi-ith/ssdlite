@@ -125,10 +125,10 @@ def parse_tfrecords(example_serialized):
     height = context['image/height']
     width = context['image/width']    
     filename = context['image/filename']
-    image_buffer = context['image/encoded']
-    image_buffer = decode_jpeg(image_buffer, 3)
+    image_encoded = context['image/encoded']
+    image_encoded = decode_jpeg(image_buffer, 3)
     
-    return image_buffer, class_id, bbox
+    return bbox, class_id, image_encoded
 
 
 def _get_images_labels(batch_size, split, distords=False):
