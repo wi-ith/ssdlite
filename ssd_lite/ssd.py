@@ -2,7 +2,7 @@
 """
 Created on Wed Feb  5 01:04:34 2020
 
-@author: RayKwak
+@author: wi-ith
 """
 
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
@@ -283,15 +283,9 @@ def distorted_inputs():
 
   """
 
-  images, labels = ssd_input.distorted_inputs(batch_size=FLAGS.batch_size)
+  images, labels, boxes = ssd_input.distorted_inputs(batch_size=FLAGS.batch_size)
 
-  if FLAGS.use_fp16:
-
-    images = tf.cast(images, tf.float16)
-
-    labels = tf.cast(labels, tf.float16)
-
-  return images, labels
+  return images, labels, boxes
 
 
 

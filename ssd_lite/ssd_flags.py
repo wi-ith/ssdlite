@@ -2,7 +2,7 @@
 """
 Created on Thu Feb  6 01:20:53 2020
 
-@author: RayKwak
+@author: wi-ith
 """
 
 
@@ -90,3 +90,8 @@ tf.app.flags.DEFINE_integer('input_queue_memory_factor', 4,
 tf.app.flags.DEFINE_integer('preprocessing_gpu', 1,"")
 
 tf.app.flags.DEFINE_integer('epoch_size', 1000,'Number of batches per epoch.')
+
+'''
+random_pad_prob
+
+'''

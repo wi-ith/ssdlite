@@ -2,7 +2,7 @@
 """
 Created on Wed Jan  8 01:44:10 2020
 
-@author: RayKwak
+@author: wi-ith
 """
 import tensorflow as tf
 import tensorflow.contrib as tc

@@ -2,7 +2,7 @@
 """
 Created on Thu Feb  6 01:05:20 2020
 
-@author: RayKwak
+@author: wi-ith
 """
 
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
@@ -63,18 +63,6 @@ FLAGS = tf.app.flags.FLAGS
 
 # architecture will change and any model would need to be retrained.
 
-IMAGE_SIZE = 24
-
-
-
-# Global constants describing the CIFAR-10 data set.
-
-NUM_CLASSES = 10
-
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
-
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
-
 
 def parse_tfrecords(example_serialized):
     """
@@ -134,6 +122,137 @@ def parse_tfrecords(example_serialized):
     return image_encoded, bbox, class_id #height, width, filename
 
 
+def distorted_inputs(batch_size):
+
+    if not batch_size:
+        batch_size = FLAGS.batch_size
+        
+    with tf.device('/cpu:0'):
+         images_batch, labels_batch, boxes_batch = _get_images_labels(batch_size, 'train', FLAGS.num_readers)
+    
+    return images_batch, labels_batch, boxes_batch
+
+
+
+def inputs(batch_size):
+
+    if not batch_size:
+        batch_size = FLAGS.batch_size
+        
+    with tf.device('/cpu:0'):
+         images_batch, labels_batch, boxes_batch = _get_images_labels(batch_size, 'validation', 1)
+    
+    return images_batch, labels_batch, boxes_batch
+
+
+
+def _get_images_labels(batch_size, split, num_readers):
+
+    """Returns Dataset for given split."""
+    with tf.name_scope('process_batch'):
+        dataset_dir = FLAGS.tfrecords_dir
+        tfrecords_list = tf.gfile.Glob(os.path.join(dataset_dir, '*'+split+'*'))
+        
+    if tfrecords_list is None:
+        raise ValueError('There are not files')
+    
+    if split=='train':
+            filename_queue = tf.train.string_input_producer(tfrecords_list,
+                                                            shuffle=True,
+                                                            capacity=16)
+    elif split=='validation':
+            filename_queue = tf.train.string_input_producer(tfrecords_list,
+                                                            shuffle=False,
+                                                            capacity=1)
+    else:
+        raise ValueError('Not appropriate split name')
+        
+    if num_preprocess_threads is None:
+        num_preprocess_threads = FLAGS.num_preprocess_threads
+
+    if num_preprocess_threads % 4:
+        raise ValueError('Please make num_preprocess_threads a multiple '
+                         'of 4 (%d % 4 != 0).', num_preprocess_threads)
+        
+    if num_readers is None:
+        num_readers = FLAGS.num_readers
+
+    if num_readers < 1:
+        raise ValueError('Please make num_readers at least 1')
+    
+    
+    # Approximate number of examples per shard.
+    examples_per_shard = 300
+    # Size the random shuffle queue to balance between good global
+    # mixing (more examples) and memory use (fewer examples).
+    # 1 image uses 299*299*3*4 bytes = 1MB
+    # The default input_queue_memory_factor is 16 implying a shuffling queue
+    # size: examples_per_shard * 16 * 1MB = 17.6GB
+    min_queue_examples = examples_per_shard * FLAGS.input_queue_memory_factor
+    if split=='train':
+        examples_queue = tf.RandomShuffleQueue(
+            capacity=min_queue_examples + 3 * batch_size,
+            min_after_dequeue=min_queue_examples,
+            dtypes=[tf.string])
+        
+    elif split=='validation':
+        examples_queue = tf.FIFOQueue(
+            capacity=examples_per_shard + 3 * batch_size,
+            dtypes=[tf.string])
+    
+
+    if num_readers > 1:
+        enqueue_ops = []
+        for _ in range(num_readers):
+            reader = tf.TFRecordReader()
+            _, value = reader.read(filename_queue)
+            enqueue_ops.append(examples_queue.enqueue([value]))
+
+        tf.train.queue_runner.add_queue_runner(
+            tf.train.queue_runner.QueueRunner(examples_queue, enqueue_ops))
+        example_serialized = examples_queue.dequeue()
+    else:
+        reader = tf.TFRecordReader()
+        _, example_serialized = reader.read(filename_queue)
+
+    one_batch=[]
+    for thread_id in range(num_preprocess_threads):
+        bbox, class_id, image_encoded = parse_tfrecords(example_serialized)
+        
+        images, labels, boxes = image_augmentation(image_encoded,
+                                                   class_id,
+                                                   bbox,
+                                                   split,
+                                                   thread_id)
+        batch_input.append([images, labels, boxes])
+    
+    images_batch, labels_batch, boxes_batch = tf.train.batch_join(
+    batch_input,
+    batch_size=batch_size,
+    capacity=2 * num_preprocess_threads * batch_size)
+    
+    height = FLAGS.image_size
+    width = FLAGS.image_size
+    depth = 3
+    max_boxes = FLAGS.max_boxes
+    
+    images_batch = tf.cast(images_batch, tf.float32)
+    images_batch = tf.reshape(images_batch, shape=[batch_size, height, width, depth])
+
+    labels_batch = tf.cast(labels_batch, tf.int32)
+    labels_batch = tf.reshape(labels_batch, shape=[batch_size, max_boxes])
+
+    boxes_batch = tf.cast(boxes_batch, tf.float32)
+    boxes_batch = tf.reshape(boxes_batch, shape=[batch_size, max_boxes, 4])
+    
+    
+    image_with_box_batch = tf.image.draw_bounding_boxes(images_batch, boxes_batch)
+    tf.summary.image('frames', image_with_box_batch)
+
+    return images_batch, labels_batch, boxes_batch
+
+
+
 def image_augmentation(image_encoded, bbox, class_id, split, thread_id=0):
 
     if split=='train':
@@ -145,8 +264,14 @@ def image_augmentation(image_encoded, bbox, class_id, split, thread_id=0):
         
     return images, boxes, labels
 
-def train_augmentation(image_encoded, class_id, bbox):
 
+
+def train_augmentation(image_encoded, class_id, bbox):
+"""
+Flip 50% -> crop 85% -> pad 40%
+"""
+    
+    
   with tf.name_scope(scope, 'augmented_image'):
     if boxes is None:
       boxes = tf.constant([0.0, 0.0, 0.0, 0.0],
@@ -211,7 +336,7 @@ def train_augmentation(image_encoded, class_id, bbox):
         num_cases = len(min_object_covered)
         random_idx = tf.random_uniform([], maxval=num_cases, dtype=tf.int32)
         selected_min_object_covered = tf.gather(min_object_covered, random_idx)
-        selected_overlap_threshold = tf.gather(overlap_thresh, random_idx)
+        selected_overlap_threshold = tf.gather(overlap_threshold, random_idx)
         random = tf.random_uniform([], minval=0, maxval=1, dtype=tf.float32)
         ssd_crop_padding=crop_pad()
         dst_image, labels, boxes = tf.cond(tf.greater(random_coef, random),
@@ -226,7 +351,7 @@ def train_augmentation(image_encoded, class_id, bbox):
 
     # Random Pad Image
     with tf.name_scope('RandomPadImage'):
-        random_pad_probability = FLAGS.random_pad_probability
+        random_pad_prob = FLAGS.random_pad_prob
 
         def _random_integer(minval, maxval, seed):
             """Returns a random 0-D tensor between minval and maxval.
@@ -310,21 +435,20 @@ def train_augmentation(image_encoded, class_id, bbox):
                 ]))
             new_window /= tf.to_float(
                 tf.stack([image_height, image_width, image_height, image_width]))
-
-            win_height = new_window[2] - new_window[0]
-            win_width = new_window[3] - new_window[1]
-
+            
+            #reset the coordinate system to the padded one
             new_boxes = boxes - [new_window[0], new_window[1], new_window[0], new_window[1]]
-            y_scale = 1.0 / win_height
-            x_scale = 1.0 / win_width
-            y_scale = tf.cast(y_scale, tf.float32)
-            x_scale = tf.cast(x_scale, tf.float32)
-            y_min, x_min, y_max, x_max = tf.split(
-                value=new_boxes, num_or_size_splits=4, axis=1)
-            y_min = y_scale * y_min
-            y_max = y_scale * y_max
-            x_min = x_scale * x_min
-            x_max = x_scale * x_max
+            norm_y = 1.0 / (new_window[2] - new_window[0])
+            norm_x = 1.0 / (new_window[3] - new_window[1])
+            norm_y = tf.cast(norm_y, tf.float32)
+            norm_x = tf.cast(norm_x, tf.float32)
+            
+            y_min, x_min, y_max, x_max = tf.split(new_boxes, 4, 1)
+            y_min = y_min * tf.cast(norm_y, tf.float32)
+            y_max = y_max * tf.cast(norm_y, tf.float32)
+            x_min = x_min * tf.cast(norm_x, tf.float32)
+            x_max = x_max * tf.cast(norm_x, tf.float32)
+            
             new_boxes = tf.concat([y_min, x_min, y_max, x_max], 1)
 
             return new_image, new_boxes
@@ -338,7 +462,7 @@ def train_augmentation(image_encoded, class_id, bbox):
             name=None
         )
 
-        dst_image, boxes = tf.cond(tf.greater_equal(random, random_pad_probability),
+        dst_image, boxes = tf.cond(tf.greater_equal(random, random_pad_prob),
                                    lambda: (dst_image, boxes),
                                    lambda: random_pad(dst_image,
                                    boxes))
@@ -346,254 +470,32 @@ def train_augmentation(image_encoded, class_id, bbox):
 
         # pad zeros to each tensor with max boxes
         num_object = tf.shape(labels)[0]
-        zeropad_weights = tf.pad(tf.ones([num_object]), tf.convert_to_tensor([[0, max_boxes - num_object]]))
         zeropad_box = tf.pad(boxes, tf.convert_to_tensor([[0, max_boxes - num_object], [0, 0]]))
         zeropad_label = tf.pad(labels, tf.convert_to_tensor([[0, max_boxes - num_object]]))
 
         zeropad_box.set_shape([max_boxes, 4])
         zeropad_label.set_shape([max_boxes])
-        zeropad_weights.set_shape([max_boxes])
         dst_image.set_shape([None,None,3])
-        with tf.name_scope(
-                'ResizeImage',
-                values=[dst_image, height, width]):
-            new_image = tf.image.resize_images(
-                dst_image, tf.stack([height, width]))
-            static_tensor_shape = image.shape.as_list()
-            dynamic_tensor_shape = tf.shape(dst_image)
-            combined_shape = []
-            for index, dim in enumerate(static_tensor_shape):
-                if dim is not None:
-                    combined_shape.append(dim)
-                else:
-                    combined_shape.append(dynamic_tensor_shape[index])
-            image_shape = combined_shape
-            result = [new_image]
-            result.append(tf.stack([height, width, image_shape[2]]))
-        dst_image = result[0]
-        true_image_shape = result[1]
-        distorted_image = (2.0 / 255.0) * dst_image - 1.0
+        
+    with tf.name_scope('ResizeImage'):
+        new_image = tf.image.resize_images(image, tf.stack([FLAGS.image_size, FLAGS.image_size]))
+    image = (2.0 / 255.0) * image - 1.0
 
-    return distorted_image, zeropad_label, zeropad_box, zeropad_weights, true_image_shape
+    return distorted_image, zeropad_label, zeropad_box
+
 
 def eval_augmentation(image_encoded, class_id, bbox):
-
-
-def _get_images_labels(batch_size, split, distords=False):
-
-    """Returns Dataset for given split."""
-    with tf.name_scope('process_batch'):
-        dataset_dir = FLAGS.tfrecords_dir
-        tfrecords_list = tf.gfile.Glob(os.path.join(dataset_dir, '*'+split+'*'))
-        
-    if tfrecords_list is None:
-        raise ValueError('There are not files')
     
-    if split=='train':
-            filename_queue = tf.train.string_input_producer(tfrecords_list,
-                                                            shuffle=True,
-                                                            capacity=16)
-    elif split=='validation':
-            filename_queue = tf.train.string_input_producer(tfrecords_list,
-                                                            shuffle=False,
-                                                            capacity=1)
-    else:
-        raise ValueError('Not appropriate split name')
-        
-    if num_preprocess_threads is None:
-        num_preprocess_threads = FLAGS.num_preprocess_threads
-
-    if num_preprocess_threads % 4:
-        raise ValueError('Please make num_preprocess_threads a multiple '
-                         'of 4 (%d % 4 != 0).', num_preprocess_threads)
-        
-    if num_readers is None:
-        num_readers = FLAGS.num_readers
-
-    if num_readers < 1:
-        raise ValueError('Please make num_readers at least 1')
-    
-    
-    # Approximate number of examples per shard.
-    examples_per_shard = 300
-    # Size the random shuffle queue to balance between good global
-    # mixing (more examples) and memory use (fewer examples).
-    # 1 image uses 299*299*3*4 bytes = 1MB
-    # The default input_queue_memory_factor is 16 implying a shuffling queue
-    # size: examples_per_shard * 16 * 1MB = 17.6GB
-    min_queue_examples = examples_per_shard * FLAGS.input_queue_memory_factor
-    if split=='train':
-        examples_queue = tf.RandomShuffleQueue(
-            capacity=min_queue_examples + 3 * batch_size,
-            min_after_dequeue=min_queue_examples,
-            dtypes=[tf.string])
-        
-    elif split=='validation':
-        examples_queue = tf.FIFOQueue(
-            capacity=examples_per_shard + 3 * batch_size,
-            dtypes=[tf.string])
-    
-
-
-    if num_readers > 1:
-        enqueue_ops = []
-        for _ in range(num_readers):
-            reader = tf.TFRecordReader()
-            _, value = reader.read(filename_queue)
-            enqueue_ops.append(examples_queue.enqueue([value]))
-
-        tf.train.queue_runner.add_queue_runner(
-            tf.train.queue_runner.QueueRunner(examples_queue, enqueue_ops))
-        example_serialized = examples_queue.dequeue()
-    else:
-        reader = tf.TFRecordReader()
-        _, example_serialized = reader.read(filename_queue)
-
-    for thread_id in range(num_preprocess_threads):
-        bbox, class_id, image_encoded = parse_tfrecords(example_serialized)
-        
-        images, labels, boxes = image_augmentation(image_encoded,
-                                                   class_id,
-                                                   bbox,
-                                                   split,
-                                                   thread_id)
-        
-        
-    image_labels = []
-        
-    
-    scope = 'data_augmentation' if distords else 'input'
-    
-    with tf.name_scope(scope):
-    
-    dataset = dataset.map(DataPreprocessor(distords), num_parallel_calls=10)
-    
-    # Dataset is small enough to be fully loaded on memory:
-    
-    dataset = dataset.prefetch(-1)
-    
-    dataset = dataset.repeat().batch(batch_size)
-    
-    iterator = dataset.make_one_shot_iterator()
-    
-    images_labels = iterator.get_next()
-    
-    images, labels = images_labels['input'], images_labels['target']
-
-    tf.summary.image('images', images)
-    
-    return images, labels
-
-
-
-
-
-class DataPreprocessor(object):
-
-  """Applies transformations to dataset record."""
-
-
-
-  def __init__(self, distords):
-
-    self._distords = distords
-
-
-
-  def __call__(self, record):
-
-    """Process img for training or eval."""
-
-    img = record['image']
-
-    img = tf.cast(img, tf.float32)
-
-    if self._distords:  # training
-
-      # Randomly crop a [height, width] section of the image.
-
-      img = tf.random_crop(img, [IMAGE_SIZE, IMAGE_SIZE, 3])
-
-      # Randomly flip the image horizontally.
-
-      img = tf.image.random_flip_left_right(img)
-
-      # Because these operations are not commutative, consider randomizing
-
-      # the order their operation.
-
-      # NOTE: since per_image_standardization zeros the mean and makes
-
-      # the stddev unit, this likely has no effect see tensorflow#1458.
-
-      img = tf.image.random_brightness(img, max_delta=63)
-
-      img = tf.image.random_contrast(img, lower=0.2, upper=1.8)
-
-    else:  # Image processing for evaluation.
-
-      # Crop the central [height, width] of the image.
-
-      img = tf.image.resize_image_with_crop_or_pad(img, IMAGE_SIZE, IMAGE_SIZE)
-
-    # Subtract off the mean and divide by the variance of the pixels.
-
-    img = tf.image.per_image_standardization(img)
-
-    return dict(input=img, target=record['label'])
-
-
-
-
-
-def distorted_inputs(batch_size):
-
-  """Construct distorted input for CIFAR training using the Reader ops.
-
-
-
-  Args:
-
-    batch_size: Number of images per batch.
-
-
-
-  Returns:
-
-    images: Images. 4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE, 3] size.
-
-    labels: Labels. 1D tensor of [batch_size] size.
-
-  """
-
-  return _get_images_labels(batch_size, tfds.Split.TRAIN, distords=True)
-
-
-
-
-
-def inputs(eval_data, batch_size):
-
-  """Construct input for CIFAR evaluation using the Reader ops.
-
-
-
-  Args:
-
-    eval_data: bool, indicating if one should use the train or eval data set.
-
-    batch_size: Number of images per batch.
-
-
-
-  Returns:
-
-    images: Images. 4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE, 3] size.
-
-    labels: Labels. 1D tensor of [batch_size] size.
-
-  """
-
-  split = tfds.Split.TEST if eval_data == 'test' else tfds.Split.TRAIN
-
-  return _get_images_labels(batch_size, split)
+  with tf.name_scope(scope, 'eval_image'):
+    num_object = tf.shape(labels)[0]
+    zeropad_boxes = tf.pad(boxes, tf.convert_to_tensor([[0, max_boxes - num_object], [0, 0]]))
+    zeropad_labels = tf.pad(labels, tf.convert_to_tensor([[0, max_boxes - num_object]]))
+
+    zeropad_boxes.set_shape([max_boxes, 4])
+    zeropad_labels.set_shape([max_boxes])
+    image.set_shape([None, None, 3])
+    with tf.name_scope('ResizeImage'):
+        new_image = tf.image.resize_images(image, tf.stack([FLAGS.image_size, FLAGS.image_size]))
+    image = (2.0 / 255.0) * image - 1.0
+
+    return image, zeropad_labels, zeropad_boxes

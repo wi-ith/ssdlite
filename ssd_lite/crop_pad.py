@@ -2,7 +2,7 @@
 """
 Created on Fri Feb  7 01:50:58 2020
 
-@author: RayKwak
+@author: wi-ith
 """
 import tensorflow as tf
 from tensorflow.python.ops import math_ops
@@ -97,7 +97,7 @@ class ssd_random_crop:
                 bboxes = tf.boolean_mask(bboxes, mask)
             return labels, bboxes
 
-    def prune_completely_outside_window(self,boxes, window, scope=None):
+    def prune_completely_outside_window(labels, boxes, window, scope=None):
         with tf.name_scope(scope, 'PruneCompleteleyOutsideWindow'):
             y_min, x_min, y_max, x_max = tf.split(
                 value=boxes, num_or_size_splits=4, axis=1)
@@ -108,9 +108,10 @@ class ssd_random_crop:
             ], 1)
             valid_indices = tf.reshape(
                 tf.where(tf.logical_not(tf.reduce_any(coordinate_violations, 1))), [-1])
+            labelslist = tf.gather(labels, valid_indices)
             subboxlist = tf.gather(boxes, valid_indices)
 
-            return subboxlist
+            return labelslist, subboxlist
 
     def random_crop_image(self,
                           image,
@@ -141,7 +142,7 @@ class ssd_random_crop:
         # [4]
         im_box_rank1 = tf.squeeze(im_box)
 
-        boxes = self.prune_completely_outside_window(boxes, im_box_rank1)
+        labels, boxes = self.prune_completely_outside_window(boxes, im_box_rank1)
         labels, boxes = self.bboxes_filter_overlap(labels, boxes, im_box_rank2,
                                               threshold=overlap_thresh,
                                               assign_negative=False)
