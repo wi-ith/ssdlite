@@ -19,6 +19,7 @@ import tensorflow as tf
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import ssd
+import ssd_input
 import ssd_flags
 
 FLAGS = tf.app.flags.FLAGS
@@ -109,7 +110,7 @@ def train():
     with tf.Graph().as_default(), tf.device('/cpu:0'):
       # Create a variable to count the number of train() calls. This equals the
       # number of batches processed * FLAGS.num_gpus.
-        global_step = tf.get_variable(
+      global_step = tf.get_variable(
             'global_step', [],
             initializer=tf.constant_initializer(0), trainable=False)
 
@@ -129,7 +130,7 @@ def train():
       opt = tf.train.RMSPropOptimizer(lr, decay=0.9, momentum=0.9, epsilon=1)
 
       # Get images and labels for CIFAR-10.
-      images, labels, boxes = ssd.distorted_inputs()
+      images, labels, boxes = ssd_input.distorted_inputs()
       # images = tf.reshape(images, [FLAGS.batch_size, FLAGS.image_size, FLAGS.image_size, 3])
       # labels = tf.reshape(labels, [FLAGS.batch_size])
       batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
@@ -137,27 +138,27 @@ def train():
       # Calculate the gradients for each model tower.
       tower_grads = []
       with tf.variable_scope(tf.get_variable_scope()):
-        for i in xrange(FLAGS.num_gpus):
-          with tf.device('/gpu:%d' % i):
-            with tf.name_scope('%s_%d' % ('tower', i)) as scope:
-              # Dequeues one batch for the GPU
-              image_batch, label_batch = batch_queue.dequeue()
-              # Calculate the loss for one tower of the CIFAR model. This function
-              # constructs the entire CIFAR model but shares the variables across
-              # all towers.
-              loss = tower_loss(scope, image_batch, label_batch)
-
-              # Reuse variables for the next tower.
-              tf.get_variable_scope().reuse_variables()
-
-              # Retain the summaries from the final tower.
-              summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
-  
-              # Calculate the gradients for the batch of data on this CIFAR tower.
-              grads = opt.compute_gradients(loss)
-
-              # Keep track of the gradients across all towers.
-              tower_grads.append(grads)
+          for i in xrange(FLAGS.num_gpus):
+              with tf.device('/gpu:%d' % i):
+                  with tf.name_scope('%s_%d' % ('tower', i)) as scope:
+                      # Dequeues one batch for the GPU
+                      image_batch, label_batch, box_batch = batch_queue.dequeue()
+                      # Calculate the loss for one tower of the CIFAR model. This function
+                      # constructs the entire CIFAR model but shares the variables across
+                      # all towers.
+                      loss = tower_loss(scope, image_batch, label_batch)
+    
+                      # Reuse variables for the next tower.
+                      tf.get_variable_scope().reuse_variables()
+    
+                      # Retain the summaries from the final tower.
+                      summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
+      
+                      # Calculate the gradients for the batch of data on this CIFAR tower.
+                      grads = opt.compute_gradients(loss)
+      
+                      # Keep track of the gradients across all towers.
+                      tower_grads.append(grads)
 
       # We must calculate the mean of each gradient. Note that this is the
       # synchronization point across all towers.
@@ -168,15 +169,15 @@ def train():
 
       # Add histograms for gradients.
       for grad, var in grads:
-        if grad is not None:
-          summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
+          if grad is not None:
+              summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
 
       # Apply the gradients to adjust the shared variables.
       apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
 
       # Add histograms for trainable variables.
       for var in tf.trainable_variables():
-        summaries.append(tf.summary.histogram(var.op.name, var))
+          summaries.append(tf.summary.histogram(var.op.name, var))
 
       # Track the moving averages of all trainable variables.
       variable_averages = tf.train.ExponentialMovingAverage(
@@ -209,35 +210,35 @@ def train():
       summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
 
       for step in xrange(FLAGS.max_steps):
-        start_time = time.time()
-        _, loss_value = sess.run([train_op, loss])
-        duration = time.time() - start_time
-
-        assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
-
-        if step % 10 == 0:
-          num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
-          examples_per_sec = num_examples_per_step / duration
-          sec_per_batch = duration / FLAGS.num_gpus
-
-          format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
-                        'sec/batch)')
-          print (format_str % (datetime.now(), step, loss_value,
-                               examples_per_sec, sec_per_batch))
-
-        if step % 100 == 0:
-          summary_str = sess.run(summary_op)
-          summary_writer.add_summary(summary_str, step)
-
-        # Save the model checkpoint periodically.
-        if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
-          checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
-          saver.save(sess, checkpoint_path, global_step=step)
-
+          start_time = time.time()
+          _, loss_value = sess.run([train_op, loss])
+          duration = time.time() - start_time
+    
+          assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
+    
+          if step % 10 == 0:
+              num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
+              examples_per_sec = num_examples_per_step / duration
+              sec_per_batch = duration / FLAGS.num_gpus
+    
+              format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
+                          'sec/batch)')
+              print (format_str % (datetime.now(), step, loss_value,
+                                   examples_per_sec, sec_per_batch))
+    
+          if step % 100 == 0:
+              summary_str = sess.run(summary_op)
+              summary_writer.add_summary(summary_str, step)
+    
+          # Save the model checkpoint periodically.
+          if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+             checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+             saver.save(sess, checkpoint_path, global_step=step)
+    
 
 def main(argv=None):  # pylint: disable=unused-argument
     if tf.gfile.Exists(FLAGS.train_dir):
-      tf.gfile.DeleteRecursively(FLAGS.train_dir)
+        tf.gfile.DeleteRecursively(FLAGS.train_dir)
     tf.gfile.MakeDirs(FLAGS.train_dir)
     train()
 
