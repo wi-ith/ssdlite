@@ -253,37 +253,21 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 
+def BoxPredictor(feat,):
+
+def ClassPredictor():
 
 
 
 
+def loss(images, labels):
 
-def loss(logits, labels):
-
-  """Add L2Loss to all the trainable variables.
-
-
-
-  Add summary for "Loss" and "Loss/avg".
-
-  Args:
-
-    logits: Logits from inference().
-
-    labels: Labels from distorted_inputs or inputs(). 1-D tensor
-
-            of shape [batch_size]
-
-
-
-  Returns:
-
-    Loss tensor of type float.
-
-  """
-
-  # Calculate the average cross entropy loss across the batch.
-    model.MobileNetV2()
+    # Calculate the average cross entropy loss across the batch.
+    train_model = model.MobileNetV2(is_training=True, input_size=FLAGS.image_size)
+    
+    #depth 960, 1280, 512, 256, 256, 128
+    fe1, fe2, fe3, fe4, fe5, fe6=train_model._build_model(images, reuse=False)
+    
     labels = tf.cast(labels, tf.int64)
 
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
@@ -294,11 +278,6 @@ def loss(logits, labels):
 
     tf.add_to_collection('losses', cross_entropy_mean)
 
-
-
-  # The total loss is defined as the cross entropy loss plus all of the weight
-
-  # decay terms (L2 loss).
 
     return tf.add_n(tf.get_collection('losses'), name='total_loss')
 
