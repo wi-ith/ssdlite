@@ -253,9 +253,7 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 
-def BoxPredictor(feat,):
 
-def ClassPredictor():
 
 
 
@@ -266,7 +264,8 @@ def loss(images, labels):
     train_model = model.MobileNetV2(is_training=True, input_size=FLAGS.image_size)
     
     #depth 960, 1280, 512, 256, 256, 128
-    fe1, fe2, fe3, fe4, fe5, fe6=train_model._build_model(images, reuse=False)
+    fe1, fe2, fe3, fe4, fe5, fe6=train_model._build_model(images)
+    
     
     labels = tf.cast(labels, tf.int64)
 

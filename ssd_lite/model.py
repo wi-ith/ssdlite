@@ -10,6 +10,7 @@ from tensorflow.contrib.framework.python.ops import arg_scope
 
 _WEIGHT_DECAY = 4e-5
 
+FLAGS = tf.app.flags.FLAGS
 
 class MobileNetV2(object):
     def __init__(self, is_training=True, input_size=224):
@@ -23,11 +24,11 @@ class MobileNetV2(object):
                           'epsilon': 0.001,
                           }
 
-    def _build_model(self, image, reuse):
+    def _build_model(self, images):
         self.i = 0
-        with arg_scope([tc.layers.conv2d],
+        with arg_scope([tc.layers.conv2d, tc.layers.separable_conv2d],
                        weights_regularizer=tc.layers.l2_regularizer(_WEIGHT_DECAY)):
-            with tf.variable_scope('MobilenetV2', reuse=reuse):
+            with tf.variable_scope('MobilenetV2', reuse=tf.AUTO_REUSE):
                 # image_copy=tf.identity(image)
                 output = tc.layers.conv2d(image, 32, 3, 2,
                                           activation_fn=tf.nn.relu6,
@@ -124,6 +125,7 @@ class MobileNetV2(object):
 
         return output1, output2, output3, output4, output5, output6
 
+
     def _inverted_bottleneck(self, input, up_sample_rate, atrous_rate, channels, subsample):
         if self.i == 0:
             name = 'expanded_conv'
@@ -157,3 +159,46 @@ class MobileNetV2(object):
             if input.get_shape().as_list()[-1] == channels:
                 project_ = tf.add(input, project_)
             return expand_, depthwise_, project_
+        
+
+    def BoxPredictor(self, feat, num_ratio, idx):
+        with arg_scope([tc.layers.conv2d, tc.layers.separable_conv2d],
+               weights_regularizer=tc.layers.l2_regularizer(_WEIGHT_DECAY)):
+            with tf.variable_scope('BoxPredictor_%d' % idx, reuse = tf.AUTO_REUSE):
+                
+                depthwise_ = tc.layers.separable_conv2d(feat, None, 3, 1,
+                                                        stride=1,
+                                                        activation_fn=tf.nn.relu6,
+                                                        normalizer_fn=self.normalizer, normalizer_params=self.bn_params,
+                                                        rate=1,
+                                                        scope='BoxEncodingPredictor_depthwise')
+                
+                project_ = tc.layers.conv2d(depthwise_, num_ratio*4, 1, activation_fn=None,
+                                            normalizer_fn=None, normalizer_params=None,
+                                            scope='BoxEncodingPredictor')
+                
+                output_ = tf.reshape(project_, [FLAGS.batch_size, -1, 4])
+                
+                return output_
+            
+            
+    def ClassPredictor(self, feat, num_ratio, idx):
+        with arg_scope([tc.layers.conv2d, tc.layers.separable_conv2d],
+               weights_regularizer=tc.layers.l2_regularizer(_WEIGHT_DECAY)):
+            with tf.variable_scope('BoxPredictor_%d' % idx, reuse = tf.AUTO_REUSE):
+                
+                depthwise_ = tc.layers.separable_conv2d(feat, None, 3, 1,
+                                                        stride=1,
+                                                        activation_fn=tf.nn.relu6,
+                                                        normalizer_fn=self.normalizer, normalizer_params=self.bn_params,
+                                                        rate=1,
+                                                        scope='ClassPredictor_depthwise')
+                
+                project_ = tc.layers.conv2d(depthwise_, num_ratio*FLAGS.num_class, 1, activation_fn=None,
+                                            normalizer_fn=None, normalizer_params=None,
+                                            scope='ClassPredictor')
+                
+                output_ = tf.reshape(project_, [FLAGS.batch_size, -1, FLAGS.num_class])
+                
+                return output_
+            

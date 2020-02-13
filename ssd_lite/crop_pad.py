@@ -73,7 +73,7 @@ class ssd_random_crop:
             # Volumes.
             inter_vol = h * w
             bboxes_vol = (bboxes[2] - bboxes[0]) * (bboxes[3] - bboxes[1])
-            scores = safe_divide(inter_vol, bboxes_vol, 'intersection')
+            scores = self.safe_divide(inter_vol, bboxes_vol, 'intersection')
             return scores
 
     def bboxes_filter_overlap(self,labels, bboxes, im_box_rank2,
@@ -87,7 +87,7 @@ class ssd_random_crop:
           labels, bboxes: Filtered (or newly assigned) elements.
         """
         with tf.name_scope(scope, 'bboxes_filter', [labels, bboxes]):
-            scores = bboxes_intersection(im_box_rank2,
+            scores = self.bboxes_intersection(im_box_rank2,
                                          bboxes)
             mask = scores >= threshold
             if assign_negative:
