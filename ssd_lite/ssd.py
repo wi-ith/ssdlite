@@ -264,7 +264,16 @@ def loss(images, labels):
     train_model = model.MobileNetV2(is_training=True, input_size=FLAGS.image_size)
     
     #depth 960, 1280, 512, 256, 256, 128
-    fe1, fe2, fe3, fe4, fe5, fe6=train_model._build_model(images)
+    feat_list=train_model._build_model(images)
+    ratio_list=[(2,1,1/2)]+[(3,2,1,1/2,1/3)]*5
+    #boxpredictor
+    box_output_list=[]
+    cls_output_list=[]
+    for k, (ratio, feat) in enumerate(zip(ratio_list, feat_list)):
+        box_output = model.BoxPredictor(feat, len(ratio), k)
+        box_output_list.append(box_output)
+        cls_output = model.ClassPredictor(feat, len(ratio), k)
+        cls_output_list.append(cls_output)
     
     
     labels = tf.cast(labels, tf.int64)
