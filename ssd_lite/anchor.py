@@ -84,6 +84,10 @@ for i, (feature,ratio) in enumerate(zip(feature_maps,ratio_list)):
 
     # num_feature_block x num_ratio x 4
     scale_anchor = tf.stack(scale_anchor, axis=1)
+<<<<<<< HEAD
+=======
+    num_obj = tf.constant(boxes.get_shape().as_list()[0])
+>>>>>>> bcb9f3da41e2b91d352b32a676c7ced75ef2da5e
 
     scale_anchor = tf.reshape(scale_anchor,[-1,4])
     anchor_list.append(scale_anchor)
@@ -154,6 +158,7 @@ print(tmp2[-30:-6])
     gt_cy = (matched_boxes[:, 1] + matched_boxes[:, 3]) / 2.
     gt_w = matched_boxes[:, 2] - matched_boxes[:, 0]
     gt_h = matched_boxes[:, 3] - matched_boxes[:, 1]
+<<<<<<< HEAD
 
     reshape_anchor = tf.reshape(scale_anchor, [-1, 4])
 
@@ -187,6 +192,37 @@ for k in res2:
     print(k.shape)
 print(res2[2])
 
+=======
+
+    reshape_anchor = tf.reshape(scale_anchor, [-1, 4])
+
+    anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
+    anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
+    anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
+    anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
+
+    gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
+    gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h + .1e-5), [-1, 1])
+    gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
+                             [-1, 1])
+    gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
+                             [-1, 1])
+
+    gt_offset = tf.concat([gt_offset_cx, gt_offset_cy, gt_offset_w, gt_offset_h], axis=1)
+
+    # gt_offset_list [(1083,4),(600,4),(150,4),(54,4),(24,4),(6,4)]
+    gt_offset_list.append(gt_offset)
+
+'''
+sess=tf.Session()
+res1, res2=sess.run([gt_offset_list,matched_label_list])
+for k in res2:
+    print(k.shape)
+print(res1[2])
+print(res2[2])
+print(res1[-2].shape)
+
+>>>>>>> bcb9f3da41e2b91d352b32a676c7ced75ef2da5e
 ###test_code
 
 import tensorflow as tf
@@ -301,6 +337,7 @@ negative_mask = tf.less_equal(max_iou,negative_threshold)
 ignore_mask = tf.logical_and(tf.greater(max_iou, negative_threshold),
                              tf.less_equal(max_iou, positive_threshold))
 positive_mask = tf.greater(max_iou,positive_threshold)
+
 
 # ignor label index : 0
 # negative label index : 1
