@@ -4,9 +4,7 @@
     <bookmark url="file://$PROJECT_DIR$/anchor.py" line="18" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5249b18c-73bf-4a93-af4f-17a53a155437" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/anchor.py" beforeDir="false" afterPath="$PROJECT_DIR$/anchor.py" afterDir="false" />
-    </list>
+    <list default="true" id="5249b18c-73bf-4a93-af4f-17a53a155437" name="Default Changelist" comment="" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -82,8 +80,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/anchor.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="137">
-              <caret line="87" column="50" lean-forward="true" selection-start-line="87" selection-start-column="50" selection-end-line="87" selection-end-column="50" />
+            <state relative-caret-position="315">
+              <caret line="120" selection-start-line="120" selection-end-line="120" />
               <folding>
                 <element signature="e#0#23#0" expanded="true" />
               </folding>
@@ -149,9 +147,9 @@
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="1">
-    <option name="x" value="819" />
-    <option name="y" value="95" />
+  <component name="ProjectFrameBounds">
+    <option name="x" value="430" />
+    <option name="y" value="139" />
     <option name="width" value="1561" />
     <option name="height" value="1292" />
   </component>
@@ -204,7 +202,7 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="819" y="95" width="1561" height="1292" extended-state="1" />
+    <frame x="430" y="139" width="1561" height="1292" extended-state="0" />
     <editor active="true" />
     <layout>
       <window_info id="Favorites" side_tool="true" />
@@ -284,8 +282,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/anchor.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="137">
-          <caret line="87" column="50" lean-forward="true" selection-start-line="87" selection-start-column="50" selection-end-line="87" selection-end-column="50" />
+        <state relative-caret-position="315">
+          <caret line="120" selection-start-line="120" selection-end-line="120" />
           <folding>
             <element signature="e#0#23#0" expanded="true" />
           </folding>
