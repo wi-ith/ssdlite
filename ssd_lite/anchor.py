@@ -84,11 +84,7 @@ for i, (feature,ratio) in enumerate(zip(feature_maps,ratio_list)):
 
     # num_feature_block x num_ratio x 4
     scale_anchor = tf.stack(scale_anchor, axis=1)
-<<<<<<< HEAD
-=======
     num_obj = tf.constant(boxes.get_shape().as_list()[0])
->>>>>>> bcb9f3da41e2b91d352b32a676c7ced75ef2da5e
-
     scale_anchor = tf.reshape(scale_anchor,[-1,4])
     anchor_list.append(scale_anchor)
 anchor_concat = tf.concat(anchor_list, axis=0)
@@ -106,6 +102,7 @@ anchor_concat = tf.reshape(anchor_concat, [-1, 4])
 tile_GT = tf.tile(tf.reshape(paded_boxes, [1, 100, 4]), [anchor_concat.shape[0], 1, 1])
 tile_anchor = tf.tile(tf.expand_dims(anchor_concat, axis=1), [1, paded_boxes.shape[0], 1])
 
+
 inter_x1 = tf.maximum(tile_GT[:, :, 0], tile_anchor[:, :, 0])
 inter_y1 = tf.maximum(tile_GT[:, :, 1], tile_anchor[:, :, 1])
 inter_x2 = tf.minimum(tile_GT[:, :, 2], tile_anchor[:, :, 2])
@@ -115,103 +112,73 @@ inter_y2 = tf.minimum(tile_GT[:, :, 3], tile_anchor[:, :, 3])
 GT_area = (tile_GT[:, :, 2] - tile_GT[:, :, 0]) * (tile_GT[:, :, 3] - tile_GT[:, :, 1])
 anchor_area = (tile_anchor[:, :, 2] - tile_anchor[:, :, 0]) * (tile_anchor[:, :, 3] - tile_anchor[:, :, 1])
 
+# num_anchor x 100
+inter_width = inter_x2 - inter_x1
+inter_height = inter_y2 - inter_y1
+width_zero_mask = tf.cast(tf.greater(inter_width, 0.), dtype=tf.float32)
+height_zero_mask = tf.cast(tf.greater(inter_height, 0.), dtype=tf.float32)
+inter_width = inter_width * width_zero_mask
+inter_height = inter_height * height_zero_mask
+intersection_area = inter_width * inter_height
 
+# num_anchor
+iou = intersection_area / (GT_area + anchor_area - intersection_area)
+max_iou_idx = tf.argmax(iou, axis=-1)
+max_iou = tf.reduce_max(iou, axis=-1)
+negative_mask = tf.less_equal(max_iou, negative_threshold)
+ignore_mask = tf.logical_and(tf.greater(max_iou, negative_threshold),
+                             tf.less_equal(max_iou, positive_threshold))
+positive_mask = tf.greater(iou,positive_threshold)
+# positive_list.append(positive_mask)
+# iou_list.append(iou)
 
-sess=tf.Session()
-tmp1,tmp2=sess.run([anchor_list,anchor_concat])
+# ignore label index : 0
+# negative label index : 1
+# positive label index : 2 ~
+pos_label_idx = max_iou_idx * (1 - tf.cast(negative_mask, dtype=tf.int64)) + tf.cast(negative_mask, dtype=tf.int64)
+pos_label_idx = pos_label_idx * (1 - tf.cast(ignore_mask, dtype=tf.int64))
 
-print(tmp1[-2])
-print(tmp2[-30:-6])
+matched_label = tf.gather(labels, pos_label_idx)
+matched_boxes = tf.gather(boxes, pos_label_idx)
+matched_label_list.append(matched_label)
 
+gt_cx = (matched_boxes[:, 0] + matched_boxes[:, 2]) / 2.
+gt_cy = (matched_boxes[:, 1] + matched_boxes[:, 3]) / 2.
+gt_w = matched_boxes[:, 2] - matched_boxes[:, 0]
+gt_h = matched_boxes[:, 3] - matched_boxes[:, 1]
 
-    # num_anchor x 100
-    inter_width = inter_x2 - inter_x1
-    inter_height = inter_y2 - inter_y1
-    width_zero_mask = tf.cast(tf.greater(inter_width, 0.), dtype=tf.float32)
-    height_zero_mask = tf.cast(tf.greater(inter_height, 0.), dtype=tf.float32)
-    inter_width = inter_width * width_zero_mask
-    inter_height = inter_height * height_zero_mask
-    intersection_area = inter_width * inter_height
+reshape_anchor = tf.reshape(anchor_concat, [-1, 4])
 
-    # num_anchor
-    iou = intersection_area / (GT_area + anchor_area - intersection_area)
-    max_iou_idx = tf.argmax(iou, axis=-1)
-    max_iou = tf.reduce_max(iou, axis=-1)
-    negative_mask = tf.less_equal(max_iou, negative_threshold)
-    ignore_mask = tf.logical_and(tf.greater(max_iou, negative_threshold),
-                                 tf.less_equal(max_iou, positive_threshold))
-    positive_mask = tf.greater(iou,positive_threshold)
-    positive_list.append(positive_mask)
-    iou_list.append(iou)
+anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
+anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
+anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
+anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
 
-    # ignore label index : 0
-    # negative label index : 1
-    # positive label index : 2 ~
-    pos_label_idx = max_iou_idx * (1 - tf.cast(negative_mask, dtype=tf.int64)) + tf.cast(negative_mask, dtype=tf.int64)
-    pos_label_idx = pos_label_idx * (1 - tf.cast(ignore_mask, dtype=tf.int64))
+gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
+gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h + .1e-5), [-1, 1])
+gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
+                         [-1, 1])
+gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
+                         [-1, 1])
 
-    matched_label = tf.gather(labels, pos_label_idx)
-    matched_boxes = tf.gather(boxes, pos_label_idx)
-    matched_label_list.append(matched_label)
+gt_offset = tf.concat([gt_offset_cx, gt_offset_cy, gt_offset_w, gt_offset_h], axis=1)
 
-    gt_cx = (matched_boxes[:, 0] + matched_boxes[:, 2]) / 2.
-    gt_cy = (matched_boxes[:, 1] + matched_boxes[:, 3]) / 2.
-    gt_w = matched_boxes[:, 2] - matched_boxes[:, 0]
-    gt_h = matched_boxes[:, 3] - matched_boxes[:, 1]
-<<<<<<< HEAD
+# gt_offset_list [(1083,4),(600,4),(150,4),(54,4),(24,4),(6,4)]
+# gt_offset_list.append(gt_offset)
 
-    reshape_anchor = tf.reshape(scale_anchor, [-1, 4])
-
-    anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
-    anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
-    anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
-    anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
-
-    gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
-    gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h + .1e-5), [-1, 1])
-    gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
-                             [-1, 1])
-    gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
-                             [-1, 1])
-
-    gt_offset = tf.concat([gt_offset_cx, gt_offset_cy, gt_offset_w, gt_offset_h], axis=1)
-
-    # gt_offset_list [(1083,4),(600,4),(150,4),(54,4),(24,4),(6,4)]
-    gt_offset_list.append(gt_offset)
-
-
-positive_list=tf.concat(positive_list,axis=0)
-keep_one_pos_label=tf.reduce_sum(tf.cast(positive_list,dtype=tf.float32),axis=0)
+keep_one_pos_label=tf.reduce_sum(tf.cast(positive_mask,dtype=tf.float32),axis=0)
+valid_keep_index = keep_one_pos_label[2:num_obj]
+valid_keep_mask = tf.equal(valid_keep_index,0.)
+#get 1917 iou values of non matched label
+#cut off already occupied anchors
+#argmax for rest of them
+#add this to final positive mask
 
 sess=tf.Session()
-res1=sess.run(keep_one_pos_label[2:4])
-print(res1)
-print(res1.shape)
-print(res1)
-for k in res2:
-    print(k.shape)
-print(res2[2])
+tmp1=sess.run(valid_keep_mask)
 
-=======
+print(tmp1)
 
-    reshape_anchor = tf.reshape(scale_anchor, [-1, 4])
-
-    anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
-    anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
-    anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
-    anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
-
-    gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
-    gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h + .1e-5), [-1, 1])
-    gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
-                             [-1, 1])
-    gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
-                             [-1, 1])
-
-    gt_offset = tf.concat([gt_offset_cx, gt_offset_cy, gt_offset_w, gt_offset_h], axis=1)
-
-    # gt_offset_list [(1083,4),(600,4),(150,4),(54,4),(24,4),(6,4)]
-    gt_offset_list.append(gt_offset)
 
 '''
 sess=tf.Session()

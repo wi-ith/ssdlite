@@ -2,8 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="f8695bb3-4d90-4832-9d80-9ae96d5b12fc" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/DL_thesis.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/DL_thesis.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ssd_lite/anchor.py" beforeDir="false" afterPath="$PROJECT_DIR$/ssd_lite/anchor.py" afterDir="false" />
     </list>
@@ -44,5 +42,9 @@
       <screen x="0" y="0" width="1707" height="1027" />
     </state>
     <state x="455" y="168" key="SettingsEditor/0.0.1707.1027@0.0.1707.1027" timestamp="1582214353894" />
+    <state x="644" y="350" key="com.intellij.ide.util.TipDialog" timestamp="1582448861018">
+      <screen x="0" y="0" width="1707" height="1027" />
+    </state>
+    <state x="644" y="350" key="com.intellij.ide.util.TipDialog/0.0.1707.1027@0.0.1707.1027" timestamp="1582448861018" />
   </component>
 </project>
