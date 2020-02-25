@@ -1,8 +1,8 @@
 import tensorflow as tf
 import numpy as np
 #depth 960, 1280, 512, 256, 256, 128
-boxes=tf.convert_to_tensor([[0.0, 0.0, 0.5, 0.5],[0.2, 0.1, 0.25, 0.15]])
-labels=tf.convert_to_tensor([1., 2.])
+boxes=tf.convert_to_tensor([[0.0, 0.0, 0.5, 0.5],[0.2, 0.1, 0.25, 0.15],[0.2, 0.2, 0.25, 0.25]])
+labels=tf.convert_to_tensor([1., 2., 7.])
 feature_maps=[tf.ones([2,19,19,960]),
               tf.ones([2,10,10,1280]),
               tf.ones([2,5,5,512]),
@@ -93,7 +93,7 @@ num_obj = tf.constant(boxes.get_shape().as_list()[0])
 
 # 100 x 4
 paded_boxes = tf.pad(boxes, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
-paded_boxes = tf.reshape(paded_boxes, [100, 4])
+paded_boxes = tf.reshape(paded_boxes, [max_boxes, 4])
 
 # [1917,4]
 anchor_concat = tf.reshape(anchor_concat, [-1, 4])
@@ -138,10 +138,37 @@ positive_mask = tf.greater(iou,positive_threshold)
 pos_label_idx = max_iou_idx * (1 - tf.cast(negative_mask, dtype=tf.int64)) + tf.cast(negative_mask, dtype=tf.int64)
 pos_label_idx = pos_label_idx * (1 - tf.cast(ignore_mask, dtype=tf.int64))
 
+
+#set unmatched box(iou is less than positive threshold) to maximum iou anchor
+keep_one_pos_label=tf.reduce_sum(tf.cast(positive_mask, dtype=tf.float32), axis=0)
+non_matched_label_index = keep_one_pos_label[2:num_obj]
+non_matched_label_mask = tf.cast(tf.equal(non_matched_label_index,0.), dtype=tf.float32)
+non_matched_label_mask = tf.pad(tf.reshape(non_matched_label_mask,[-1,1]), tf.convert_to_tensor([[2, max_boxes - num_obj],[0,0]]), "CONSTANT")
+non_matched_label_mask = tf.squeeze(non_matched_label_mask)
+non_matched_label_mask = tf.tile(tf.reshape(non_matched_label_mask, [1, max_boxes]), [iou.get_shape().as_list()[0], 1])
+non_matched_label_iou = iou*non_matched_label_mask
+
+pos_anchor_mask = tf.greater(tf.reduce_sum(tf.cast(positive_mask, dtype=tf.float32), axis=1),0.)
+pos_anchor_mask = tf.cast(pos_anchor_mask,dtype=tf.float32)
+pos_anchor_mask = tf.tile(tf.reshape(pos_anchor_mask, [iou.get_shape().as_list()[0], 1]),[1, max_boxes] )
+non_matched_label_iou = non_matched_label_iou*(1.-pos_anchor_mask)
+
+non_matched_max_iou_0 = tf.reduce_max(non_matched_label_iou, axis=0)
+# tmp = tf.argmax(non_matched_label_iou,axis=0)
+non_matched_max_iou_0 = tf.tile(tf.reshape(non_matched_max_iou_0,[1,max_boxes]),[iou.get_shape().as_list()[0], 1])
+iou_zero_mask = tf.equal(iou,0.)
+iou_cutzero = iou-tf.cast(iou_zero_mask,dtype=tf.float32)
+non_matched_max_iou = tf.equal(iou_cutzero,non_matched_max_iou_0)
+non_matched_max_label=tf.argmax(tf.cast(non_matched_max_iou,dtype=tf.float32),axis=1)
+
+non_matched_max_label_mask=tf.greater(non_matched_max_label,0)
+#merge unmatched label
+pos_label_idx=pos_label_idx*(1-tf.cast(non_matched_max_label_mask,dtype=tf.int64))+non_matched_max_label
+
 matched_label = tf.gather(labels, pos_label_idx)
 matched_boxes = tf.gather(boxes, pos_label_idx)
-matched_label_list.append(matched_label)
 
+#convert gt coordinate to offset
 gt_cx = (matched_boxes[:, 0] + matched_boxes[:, 2]) / 2.
 gt_cy = (matched_boxes[:, 1] + matched_boxes[:, 3]) / 2.
 gt_w = matched_boxes[:, 2] - matched_boxes[:, 0]
@@ -163,22 +190,26 @@ gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equa
 
 gt_offset = tf.concat([gt_offset_cx, gt_offset_cy, gt_offset_w, gt_offset_h], axis=1)
 
-# gt_offset_list [(1083,4),(600,4),(150,4),(54,4),(24,4),(6,4)]
-# gt_offset_list.append(gt_offset)
 
-keep_one_pos_label=tf.reduce_sum(tf.cast(positive_mask,dtype=tf.float32),axis=0)
-valid_keep_index = keep_one_pos_label[2:num_obj]
-valid_keep_mask = tf.equal(valid_keep_index,0.)
-#get 1917 iou values of non matched label
-#cut off already occupied anchors
-#argmax for rest of them
-#add this to final positive mask
+#how to deal with non zero offset losses???
+import tensorflow as tf
+import numpy as np
+target_tensor=tf.convert_to_tensor([0.1,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.1,0.1,0.2])
+prediction_tensor=tf.convert_to_tensor([0.1,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.2,0.5,0.3])
+target_tensor=tf.convert_to_tensor(np.array([[0.,0.,0.,0.],[0.,0.,0.,0.],[0.,0.,0.,0.],[0.1,0.1,0.1,0.2]]))
+prediction_tensor=tf.convert_to_tensor(np.array([[0.,0.,0.,0.],[0.,0.,0.,0.],[0.,0.,0.,0.],[0.1,0.2,0.5,0.3]]))
+tmp=tf.losses.huber_loss(
+        target_tensor,
+        prediction_tensor,
+        delta=1.0,
+        loss_collection=None,
+        reduction=tf.losses.Reduction.NONE
+        )
+
 
 sess=tf.Session()
-tmp1=sess.run(valid_keep_mask)
-
-print(tmp1)
-
+tt=sess.run(tmp)
+print(tt)
 
 '''
 sess=tf.Session()
