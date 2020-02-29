@@ -274,7 +274,8 @@ def loss(images, labels):
         box_output_list.append(box_output)
         cls_output = model.ClassPredictor(feat, len(ratio), k)
         cls_output_list.append(cls_output)
-    
+
+
     
     labels = tf.cast(labels, tf.int64)
 
