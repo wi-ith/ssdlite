@@ -87,6 +87,7 @@ import ssd_input
 
 import model
 
+import anchor_match_loss as aml
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -258,7 +259,7 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 
-def loss(images, labels):
+def loss(images, boxes, labels):
 
     # Calculate the average cross entropy loss across the batch.
     train_model = model.MobileNetV2(is_training=True, input_size=FLAGS.image_size)
@@ -275,6 +276,20 @@ def loss(images, labels):
         cls_output = model.ClassPredictor(feat, len(ratio), k)
         cls_output_list.append(cls_output)
 
+    anchor_concat=aml.make_anchor(cls_output_list,
+                                  0.2,
+                                  0.95,
+                                  ratio_list)
+
+    cls_loss,loc_loss = aml.anchor_matching_cls_loc_loss(anchor_concat,
+                                                         cls_output_list,
+                                                         box_output_list,
+                                                         boxes,
+                                                         labels,
+                                                         positive_threshold=0.5,
+                                                         negative_threshold=0.3,
+                                                         num_classes=10,
+                                                         max_boxes=100)
 
     
     labels = tf.cast(labels, tf.int64)

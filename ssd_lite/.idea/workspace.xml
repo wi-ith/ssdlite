@@ -2,11 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5249b18c-73bf-4a93-af4f-17a53a155437" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/../.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/ssd_lite.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ssd_lite.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/anchor_match_loss.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/anchor.py" beforeDir="false" afterPath="$PROJECT_DIR$/anchor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/anchor.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/ssd.py" beforeDir="false" afterPath="$PROJECT_DIR$/ssd.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -32,7 +30,7 @@
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$USER_HOME$/Documents/rm/Detection_1/Single/SSDLite" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="SvnConfiguration">
@@ -57,16 +55,9 @@
       <screen x="0" y="0" width="1707" height="1027" />
     </state>
     <state x="650" y="208" key="SettingsEditor/0.0.1707.1027@0.0.1707.1027" timestamp="1582945544961" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/anchor.py</url>
-          <line>113</line>
-          <option name="timeStamp" value="2" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+    <state x="516" y="222" width="672" height="678" key="search.everywhere.popup" timestamp="1582966072848">
+      <screen x="0" y="0" width="1707" height="1027" />
+    </state>
+    <state x="516" y="222" width="672" height="678" key="search.everywhere.popup/0.0.1707.1027@0.0.1707.1027" timestamp="1582966072848" />
   </component>
 </project>
