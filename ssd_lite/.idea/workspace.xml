@@ -2,10 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5249b18c-73bf-4a93-af4f-17a53a155437" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/anchor_match_loss.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/anchor.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/anchor_match_loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/anchor_match_loss.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ssd.py" beforeDir="false" afterPath="$PROJECT_DIR$/ssd.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ssd_flags.py" beforeDir="false" afterPath="$PROJECT_DIR$/ssd_flags.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/train.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -16,6 +16,7 @@ from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import ssd
@@ -112,7 +113,7 @@ def train():
                       # Calculate the loss for one tower of the CIFAR model. This function
                       # constructs the entire CIFAR model but shares the variables across
                       # all towers.
-                      loss = tower_loss(scope, image_batch, label_batch)
+                      loss = ssd.loss(image_batch, label_batch, box_batch)
     
                       # Reuse variables for the next tower.
                       tf.get_variable_scope().reuse_variables()
@@ -139,19 +140,11 @@ def train():
               summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
 
       # Apply the gradients to adjust the shared variables.
-      apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+      train_op = opt.apply_gradients(grads, global_step=global_step)
 
       # Add histograms for trainable variables.
       for var in tf.trainable_variables():
           summaries.append(tf.summary.histogram(var.op.name, var))
-
-      # Track the moving averages of all trainable variables.
-      variable_averages = tf.train.ExponentialMovingAverage(
-          cifar10.MOVING_AVERAGE_DECAY, global_step)
-      variables_averages_op = variable_averages.apply(tf.trainable_variables())
-
-      # Group all updates to into a single train op.
-      train_op = tf.group(apply_gradient_op, variables_averages_op)
 
       # Create a saver.
       saver = tf.train.Saver(tf.global_variables())
@@ -159,16 +152,32 @@ def train():
       # Build the summary operation from the last tower summaries.
       summary_op = tf.summary.merge(summaries)
 
-      # Build an initialization operation to run below.
-      init = tf.global_variables_initializer()
+      pretrained_ckpt_path = FLAGS.pretrained_ckpt_path
 
-      # Start running operations on the Graph. allow_soft_placement must be set to
-      # True to build towers on GPU, as some of the ops do not have GPU
-      # implementations.
-      sess = tf.Session(config=tf.ConfigProto(
-          allow_soft_placement=True,
-          log_device_placement=FLAGS.log_device_placement))
-      sess.run(init)
+      if  not tf.train.latest_checkpoint(FLAGS.ckpt_save_path):
+          print('pretrained ckpt')
+          exclude_layers = ['global_step',
+                           'BoxPredictor_0/ClassPredictor/',
+                           'BoxPredictor_1/ClassPredictor/',
+                           'BoxPredictor_2/ClassPredictor/',
+                           'BoxPredictor_3/ClassPredictor/',
+                           'BoxPredictor_4/ClassPredictor/',
+                           'BoxPredictor_5/ClassPredictor/',
+                           ]
+          restore_variables = slim.get_variables_to_restore(exclude=exclude_layers)
+          init_fn = slim.assign_from_checkpoint_fn(pretrained_ckpt_path,
+                                                   restore_variables, ignore_missing_vars=True)
+
+      else:
+          print('training ckpt')
+          init_fn = None
+
+      sv = tf.train.Supervisor(logdir=FLAGS.log_dir,
+                               summary_op=None,
+                               saver=saver,
+                               save_model_secs=0,
+                               init_fn=init_fn)
+
 
       # Start the queue runners.
       tf.train.start_queue_runners(sess=sess)

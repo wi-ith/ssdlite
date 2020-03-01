@@ -259,7 +259,7 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 
-def loss(images, boxes, labels):
+def loss(images, labels, boxes):
 
     # Calculate the average cross entropy loss across the batch.
     train_model = model.MobileNetV2(is_training=True, input_size=FLAGS.image_size)
@@ -284,26 +284,14 @@ def loss(images, boxes, labels):
     cls_loss,loc_loss = aml.anchor_matching_cls_loc_loss(anchor_concat,
                                                          cls_output_list,
                                                          box_output_list,
-                                                         boxes,
                                                          labels,
+                                                         boxes,
                                                          positive_threshold=0.5,
                                                          negative_threshold=0.3,
                                                          num_classes=10,
                                                          max_boxes=100)
 
-    
-    labels = tf.cast(labels, tf.int64)
-
-    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-
-        labels=labels, logits=logits, name='cross_entropy_per_example')
-
-    cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-
-    tf.add_to_collection('losses', cross_entropy_mean)
-
-
-    return tf.add_n(tf.get_collection('losses'), name='total_loss')
+    return cls_loss, loc_loss
 
 
 

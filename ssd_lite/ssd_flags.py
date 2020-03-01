@@ -12,9 +12,9 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-tf.app.flags.DEFINE_string('log_dir', "")
+tf.app.flags.DEFINE_string('ckpt_save_path', "")
 
-tf.app.flags.DEFINE_string('pretrained_dir', "")
+tf.app.flags.DEFINE_string('pretrained_ckpt_path', "")
 
 tf.app.flags.DEFINE_string('mode', "train")
 
