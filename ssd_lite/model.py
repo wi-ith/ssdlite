@@ -24,7 +24,7 @@ class MobileNetV2(object):
                           'epsilon': 0.001,
                           }
 
-    def _build_model(self, images):
+    def _build_model(self, image):
         self.i = 0
         with arg_scope([tc.layers.conv2d, tc.layers.separable_conv2d],
                        weights_regularizer=tc.layers.l2_regularizer(_WEIGHT_DECAY)):
@@ -34,7 +34,7 @@ class MobileNetV2(object):
                                           activation_fn=tf.nn.relu6,
                                           normalizer_fn=self.normalizer, normalizer_params=self.bn_params)  # conv
 
-                print(output.get_shape())
+
                 _, _, output = self._inverted_bottleneck(output, 1, 1, 16, 0)  # expanded_conv
                 _, _, output = self._inverted_bottleneck(output, 6, 1, 24, 1)  # expanded_conv_1
                 _, _, output = self._inverted_bottleneck(output, 6, 1, 24, 0)  # expanded_conv_2
@@ -194,11 +194,11 @@ class MobileNetV2(object):
                                                         rate=1,
                                                         scope='ClassPredictor_depthwise')
                 
-                project_ = tc.layers.conv2d(depthwise_, num_ratio*FLAGS.num_class, 1, activation_fn=None,
+                project_ = tc.layers.conv2d(depthwise_, num_ratio*FLAGS.num_classes, 1, activation_fn=None,
                                             normalizer_fn=None, normalizer_params=None,
                                             scope='ClassPredictor')
                 
-                output_ = tf.reshape(project_, [FLAGS.batch_size, -1, FLAGS.num_class])
+                output_ = tf.reshape(project_, [FLAGS.batch_size, -1, FLAGS.num_classes])
                 
                 return output_
             

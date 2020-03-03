@@ -98,7 +98,7 @@ def train():
       opt = tf.train.RMSPropOptimizer(lr, decay=0.9, momentum=0.9, epsilon=1)
 
       # Get images and labels for CIFAR-10.
-      images, labels, boxes = input.distorted_inputs()
+      images, labels, boxes = input.distorted_inputs(FLAGS.batch_size)
       # images = tf.reshape(images, [FLAGS.batch_size, FLAGS.image_size, FLAGS.image_size, 3])
       # labels = tf.reshape(labels, [FLAGS.batch_size])
       batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(

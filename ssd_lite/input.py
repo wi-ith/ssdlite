@@ -5,46 +5,6 @@ Created on Thu Feb  6 01:05:20 2020
 @author: wi-ith
 """
 
-# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
-
-#
-
-# Licensed under the Apache License, Version 2.0 (the "License");
-
-# you may not use this file except in compliance with the License.
-
-# You may obtain a copy of the License at
-
-#
-
-#     http://www.apache.org/licenses/LICENSE-2.0
-
-#
-
-# Unless required by applicable law or agreed to in writing, software
-
-# distributed under the License is distributed on an "AS IS" BASIS,
-
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-
-# See the License for the specific language governing permissions and
-
-# limitations under the License.
-
-# ==============================================================================
-
-
-
-"""Routine for decoding the CIFAR-10 binary file format."""
-
-
-
-from __future__ import absolute_import
-
-from __future__ import division
-
-from __future__ import print_function
-
 
 
 import tensorflow as tf
@@ -56,12 +16,6 @@ import os
 FLAGS = tf.app.flags.FLAGS
 
 
-
-# Process images of this size. Note that this differs from the original CIFAR
-
-# image size of 32 x 32. If one alters this number, then the entire model
-
-# architecture will change and any model would need to be retrained.
 
 def decode_jpeg(image_buffer, channels, scope=None):
     """Decode a JPEG string into one 3-D float image Tensor.
@@ -136,7 +90,7 @@ def parse_tfrecords(example_serialized):
     #width = context['image/width']    
     #filename = context['image/filename']
 
-    return image_encoded, bbox, class_id #height, width, filename
+    return image_encoded, class_id, bbox #height, width, filename
 
 
 def distorted_inputs(batch_size):
@@ -234,7 +188,7 @@ def _get_images_labels(batch_size, split, num_readers, num_preprocess_threads=No
 
     batch_input=[]
     for thread_id in range(num_preprocess_threads):
-        bbox, class_id, image_encoded = parse_tfrecords(example_serialized)
+        image_encoded, class_id, bbox = parse_tfrecords(example_serialized)
         
         images, labels, boxes = image_augmentation(image_encoded,
                                                    class_id,
@@ -270,16 +224,16 @@ def _get_images_labels(batch_size, split, num_readers, num_preprocess_threads=No
 
 
 
-def image_augmentation(image_encoded, bbox, class_id, split, thread_id=0):
+def image_augmentation(image_encoded, class_id, bbox, split, thread_id=0):
 
     if split=='train':
         # Since having only samll dataset, augment dataset as much as possible
-        images, boxes, labels = train_augmentation(image_encoded, class_id, bbox)
+        images, labels, boxes = train_augmentation(image_encoded, class_id, bbox)
         
     elif split=='validation':
-        images, boxes, labels = eval_augmentation(image_encoded, class_id, bbox)
+        images, labels, boxes = eval_augmentation(image_encoded, class_id, bbox)
         
-    return images, boxes, labels
+    return images, labels, boxes
 
 
 def train_augmentation(image_encoded, labels, boxes):
@@ -298,11 +252,13 @@ def train_augmentation(image_encoded, labels, boxes):
         # the coordinates are ordered [ymin, xmin, ymax, xmax].
 
         image = tf.to_float(image_encoded)
+
         # Random Horizontal Flip
         with tf.name_scope('RandomHorizontalFlip'):
-            random_horizontal_flip_probability = FLAGS.random_horizontal_flip_probability
+            random_flip_prob = FLAGS.random_flip_prob
 
             def _flip_image(image):
+
                 # flip image
                 image_flipped = tf.image.flip_left_right(image)
                 return image_flipped
@@ -334,12 +290,12 @@ def train_augmentation(image_encoded, labels, boxes):
                 name=None
             )
             # flip image
-            image = tf.cond(tf.greater_equal(random, random_horizontal_flip_probability),
+            image = tf.cond(tf.greater_equal(random, random_flip_prob),
                             lambda: image,
                             lambda: _flip_image(image))
 
             # flip boxes
-            boxes = tf.cond(tf.greater_equal(random, random_horizontal_flip_probability),
+            boxes = tf.cond(tf.greater_equal(random, random_flip_prob),
                             lambda: boxes,
                             lambda: _flip_boxes_left_right(boxes))
 
@@ -353,15 +309,14 @@ def train_augmentation(image_encoded, labels, boxes):
             selected_min_object_covered = tf.gather(min_object_covered, random_idx)
             selected_overlap_threshold = tf.gather(overlap_threshold, random_idx)
             random = tf.random_uniform([], minval=0, maxval=1, dtype=tf.float32)
-            ssd_crop_padding = crop_pad()
             dst_image, labels, boxes = tf.cond(tf.greater(random_coef, random),
                                                lambda: (image, labels, boxes),
-                                               lambda: ssd_crop_padding.random_crop_image(
+                                               lambda: crop_pad.random_crop_image(
                                                    image=image,
                                                    boxes=boxes,
                                                    labels=labels,
-                                                   min_object_covered=selected_min_object_covered),
-                                               overlap_thresh=selected_overlap_threshold
+                                                   min_object_covered=selected_min_object_covered,
+                                                   overlap_thresh = selected_overlap_threshold)
                                                )
 
         # Random Pad Image

@@ -158,14 +158,14 @@ def loss(images, labels, boxes):
     
     #depth 960, 1280, 512, 256, 256, 128
     feat_list=train_model._build_model(images)
-    ratio_list=[(2,1,1/2)]+[(3,2,1,1/2,1/3)]*5
+    ratio_list=[(2.,1.,1./2.)]+[(3.,2.,1.,1./2.,1./3.)]*5
     #boxpredictor
     box_output_list=[]
     cls_output_list=[]
     for k, (ratio, feat) in enumerate(zip(ratio_list, feat_list)):
-        box_output = model.BoxPredictor(feat, len(ratio), k)
+        box_output = train_model.BoxPredictor(feat, len(ratio), k)
         box_output_list.append(box_output)
-        cls_output = model.ClassPredictor(feat, len(ratio), k)
+        cls_output = train_model.ClassPredictor(feat, len(ratio), k)
         cls_output_list.append(cls_output)
 
     anchor_concat=aml.make_anchor(cls_output_list,
@@ -178,10 +178,10 @@ def loss(images, labels, boxes):
                                                          box_output_list,
                                                          labels,
                                                          boxes,
-                                                         positive_threshold=0.5,
-                                                         negative_threshold=0.3,
-                                                         num_classes=10,
-                                                         max_boxes=100)
+                                                         positive_threshold=FLAGS.positive_threshold,
+                                                         negative_threshold=FLAGS.negative_threshold,
+                                                         num_classes=FLAGS.num_classes,
+                                                         max_boxes=FLAGS.max_boxes)
 
     return cls_loss, loc_loss
 

@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/kdg/tmp_test/model.ckpt"
+all_model_checkpoint_paths: "/home/kdg/tmp_test/model.ckpt"

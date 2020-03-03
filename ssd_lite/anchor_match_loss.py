@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 
+FLAGS = tf.app.flags.FLAGS
+
 def focal_loss(one_hot_label,logits,gamma=2,axis=-1):
     def soft_max(logits,axis=axis):
         tile_depth=logits.shape[axis]
@@ -158,7 +160,8 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         # ground truth for ignore, negative anchor
         boxes = tf.concat([[[0,0,0,0],[0,0,0,0]],boxes],axis=0)
 
-        num_obj = tf.constant(boxes.get_shape().as_list()[0])
+        #num_obj = tf.constant(boxes.get_shape().as_list()[0])
+        num_obj = tf.size(labels)
 
         # 100 x 4
         paded_boxes = tf.pad(boxes, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
