@@ -19,9 +19,10 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
+
 import ssd
-import ssd_input
-import ssd_flags
+import input
+import flags
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -97,7 +98,7 @@ def train():
       opt = tf.train.RMSPropOptimizer(lr, decay=0.9, momentum=0.9, epsilon=1)
 
       # Get images and labels for CIFAR-10.
-      images, labels, boxes = ssd_input.distorted_inputs()
+      images, labels, boxes = input.distorted_inputs()
       # images = tf.reshape(images, [FLAGS.batch_size, FLAGS.image_size, FLAGS.image_size, 3])
       # labels = tf.reshape(labels, [FLAGS.batch_size])
       batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
@@ -172,13 +173,13 @@ def train():
           print('training ckpt')
           init_fn = None
 
-      sv = tf.train.Supervisor(logdir=FLAGS.log_dir,
+      sv = tf.train.Supervisor(logdir=FLAGS.ckpt_save_path,
                                summary_op=None,
                                saver=saver,
                                save_model_secs=0,
                                init_fn=init_fn)
 
-
+      sess=sv.managed_session()
       # Start the queue runners.
       tf.train.start_queue_runners(sess=sess)
 
@@ -206,7 +207,7 @@ def train():
               summary_writer.add_summary(summary_str, step)
     
           # Save the model checkpoint periodically.
-          if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+          if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
              checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
              saver.save(sess, checkpoint_path, global_step=step)
     

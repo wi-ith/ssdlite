@@ -24,4 +24,6 @@ tf.app.flags.DEFINE_integer('image_size', 512)
 
 tf.app.flags.DEFINE_integer('max_boxes', 100)
 
+tf.app.flags.DEFINE_integer('num_train', 1000)
+
 tf.app.flags.DEFINE_integer('num_preprocess_threads', 4)
