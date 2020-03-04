@@ -48,7 +48,10 @@ def make_anchor(feature_maps,
     scale_list=(scale_range-1.)*((max_scale-min_scale)/(len(feature_maps)-1.))+min_scale
     scale_list=[.1]+list(scale_list)+[1.]
     anchor_list = []
+
+
     for i, (feature,ratio) in enumerate(zip(feature_maps,ratio_list)):
+
         anchor_size=feature.get_shape().as_list()[1:3]
 
         coordi_range = tf.cast(tf.range(0, anchor_size[0], 1), dtype=tf.float32)
@@ -108,6 +111,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
                                  feature_maps_loc,
                                  labels,
                                  boxes,
+                                 num_objects,
                                  positive_threshold,
                                  negative_threshold,
                                  num_classes,
@@ -145,33 +149,35 @@ def anchor_matching_cls_loc_loss(anchor_concat,
             reshape_featur_loc = tf.reshape(feature_loc, [origin_shape[0], -1, 4])
             feature_concat_loc = tf.concat([feature_concat_loc, reshape_featur_loc], axis=1)
 
-
+    num_objects_list = tf.unstack(num_objects,axis=0)
     boxes_list = tf.unstack(boxes,axis=0)
     labels_list = tf.unstack(labels,axis=0)
     cls_logits_list = tf.unstack(feature_concat_cls,axis=0)
     loc_logits_list = tf.unstack(feature_concat_loc,axis=0)
+
     gt_offset_list = []
     cls_loss_list=[]
     loc_loss_list=[]
 
-    for boxes, labels, cls_logit, loc_logit in zip(boxes_list, labels_list, cls_logits_list, loc_logits_list):
+    for num_objects_, boxes_, labels_, cls_logit, loc_logit in zip(num_objects_list, boxes_list, labels_list, cls_logits_list, loc_logits_list):
 
-        labels = tf.concat([[-1, 0], labels], axis=0)
+        labels_ = tf.concat([[-1, 0], labels_[:-2]], axis=0)
         # ground truth for ignore, negative anchor
-        boxes = tf.concat([[[0,0,0,0],[0,0,0,0]],boxes],axis=0)
+        boxes_ = tf.concat([[[0,0,0,0],[0,0,0,0]],boxes_[:-2,:]],axis=0)
 
         #num_obj = tf.constant(boxes.get_shape().as_list()[0])
-        num_obj = tf.size(labels)
+        num_obj = num_objects_
 
         # 100 x 4
-        paded_boxes = tf.pad(boxes, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
-        paded_boxes = tf.reshape(paded_boxes, [max_boxes, 4])
+        # paded_boxes = tf.pad(boxes_, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
+        paded_boxes = tf.reshape(boxes_, [max_boxes, 4])
 
         # [1917,4]
         anchor_concat = tf.reshape(anchor_concat, [-1, 4])
 
+
         # num_anchor x 100 x 4
-        tile_GT = tf.tile(tf.reshape(paded_boxes, [1, 100, 4]), [anchor_concat.shape[0], 1, 1])
+        tile_GT = tf.tile(tf.reshape(paded_boxes, [1, max_boxes, 4]), [anchor_concat.shape[0], 1, 1])
         tile_anchor = tf.tile(tf.expand_dims(anchor_concat, axis=1), [1, paded_boxes.shape[0], 1])
 
 
@@ -213,7 +219,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         keep_one_pos_label=tf.reduce_sum(tf.cast(positive_mask, dtype=tf.float32), axis=0)
         non_matched_label_index = keep_one_pos_label[2:num_obj]
         non_matched_label_mask = tf.cast(tf.equal(non_matched_label_index,0.), dtype=tf.float32)
-        non_matched_label_mask = tf.pad(tf.reshape(non_matched_label_mask,[-1,1]), tf.convert_to_tensor([[2, max_boxes - num_obj],[0,0]]), "CONSTANT")
+        non_matched_label_mask = tf.pad(tf.reshape(non_matched_label_mask,[-1,1]), tf.convert_to_tensor([[2, max_boxes - (num_obj+2)],[0,0]]), "CONSTANT")
         non_matched_label_mask = tf.squeeze(non_matched_label_mask)
         non_matched_label_mask = tf.tile(tf.reshape(non_matched_label_mask, [1, max_boxes]), [iou.get_shape().as_list()[0], 1])
         non_matched_label_iou = iou*non_matched_label_mask
@@ -235,8 +241,8 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         #merge unmatched label
         pos_label_idx=pos_label_idx*(1-tf.cast(non_matched_max_label_mask,dtype=tf.int64))+non_matched_max_label
 
-        matched_label = tf.gather(labels, pos_label_idx)
-        matched_boxes = tf.gather(boxes, pos_label_idx)
+        matched_label = tf.gather(labels_, pos_label_idx)
+        matched_boxes = tf.gather(boxes_, pos_label_idx)
         matched_boxes_mask = tf.greater(matched_boxes,0.)
 
         #convert gt coordinate to offset
@@ -263,6 +269,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
 
         gt_offset = tf.cast(matched_boxes_mask,dtype=tf.float32)*gt_offset
         gt_offset_list.append(gt_offset)
+
         loc_loss=tf.losses.huber_loss(
             gt_offset,
             loc_logit,
@@ -279,6 +286,8 @@ def anchor_matching_cls_loc_loss(anchor_concat,
     cls_loss_sum = tf.reduce_sum(tf.stack(cls_loss_list))
     loc_loss_sum = tf.reduce_sum(tf.stack(loc_loss_list))
     return cls_loss_sum, loc_loss_sum
+
+import tensorflow as tf
 
 
 #

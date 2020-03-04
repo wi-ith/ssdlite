@@ -99,9 +99,9 @@ def distorted_inputs(batch_size):
         batch_size = FLAGS.batch_size
         
     with tf.device('/cpu:0'):
-         images_batch, labels_batch, boxes_batch = _get_images_labels(batch_size, 'train', FLAGS.num_readers)
+         images_batch, labels_batch, boxes_batch, num_objects_batch = _get_images_labels(batch_size, 'train', FLAGS.num_readers)
     
-    return images_batch, labels_batch, boxes_batch
+    return images_batch, labels_batch, boxes_batch, num_objects_batch
 
 
 
@@ -111,9 +111,9 @@ def inputs(batch_size):
         batch_size = FLAGS.batch_size
         
     with tf.device('/cpu:0'):
-         images_batch, labels_batch, boxes_batch = _get_images_labels(batch_size, 'validation', 1)
+         images_batch, labels_batch, boxes_batch, num_objects_batch = _get_images_labels(batch_size, 'validation', 1)
     
-    return images_batch, labels_batch, boxes_batch
+    return images_batch, labels_batch, boxes_batch, num_objects_batch
 
 
 
@@ -190,17 +190,17 @@ def _get_images_labels(batch_size, split, num_readers, num_preprocess_threads=No
     for thread_id in range(num_preprocess_threads):
         image_encoded, class_id, bbox = parse_tfrecords(example_serialized)
         
-        images, labels, boxes = image_augmentation(image_encoded,
-                                                   class_id,
-                                                   bbox,
-                                                   split,
-                                                   thread_id)
-        batch_input.append([images, labels, boxes])
+        images, labels, boxes, num_objects = image_augmentation(image_encoded,
+                                                               class_id,
+                                                               bbox,
+                                                               split,
+                                                               thread_id)
+        batch_input.append([images, labels, boxes, num_objects])
     
-    images_batch, labels_batch, boxes_batch = tf.train.batch_join(
-    batch_input,
-    batch_size=batch_size,
-    capacity=2 * num_preprocess_threads * batch_size)
+    images_batch, labels_batch, boxes_batch, num_objects_batch = tf.train.batch_join(
+                                                                batch_input,
+                                                                batch_size=batch_size,
+                                                                capacity=2 * num_preprocess_threads * batch_size)
     
     height = FLAGS.image_size
     width = FLAGS.image_size
@@ -215,12 +215,14 @@ def _get_images_labels(batch_size, split, num_readers, num_preprocess_threads=No
 
     boxes_batch = tf.cast(boxes_batch, tf.float32)
     boxes_batch = tf.reshape(boxes_batch, shape=[batch_size, max_boxes, 4])
-    
+
+    num_objects_batch = tf.cast(num_objects_batch, tf.int32)
+    num_objects_batch = tf.reshape(num_objects_batch, shape=[batch_size])
     
     image_with_box_batch = tf.image.draw_bounding_boxes(images_batch, boxes_batch)
     tf.summary.image('frames', image_with_box_batch)
 
-    return images_batch, labels_batch, boxes_batch
+    return images_batch, labels_batch, boxes_batch, num_objects_batch
 
 
 
@@ -228,12 +230,12 @@ def image_augmentation(image_encoded, class_id, bbox, split, thread_id=0):
 
     if split=='train':
         # Since having only samll dataset, augment dataset as much as possible
-        images, labels, boxes = train_augmentation(image_encoded, class_id, bbox)
+        images, labels, boxes, num_objects = train_augmentation(image_encoded, class_id, bbox)
         
     elif split=='validation':
-        images, labels, boxes = eval_augmentation(image_encoded, class_id, bbox)
+        images, labels, boxes, num_objects = eval_augmentation(image_encoded, class_id, bbox)
         
-    return images, labels, boxes
+    return images, labels, boxes, num_objects
 
 
 def train_augmentation(image_encoded, labels, boxes):
@@ -445,13 +447,14 @@ def train_augmentation(image_encoded, labels, boxes):
 
             zeropad_box.set_shape([max_boxes, 4])
             zeropad_label.set_shape([max_boxes])
+
             dst_image.set_shape([None, None, 3])
 
         with tf.name_scope('ResizeImage'):
             new_image = tf.image.resize_images(dst_image, tf.stack([FLAGS.image_size, FLAGS.image_size]))
         distorted_image = (2.0 / 255.0) * new_image - 1.0
 
-        return distorted_image, zeropad_label, zeropad_box
+        return distorted_image, zeropad_label, zeropad_box, num_object
 
 
 def eval_augmentation(image_encoded, labels, boxes):
@@ -468,4 +471,4 @@ def eval_augmentation(image_encoded, labels, boxes):
             new_image = tf.image.resize_images(image_encoded, tf.stack([FLAGS.image_size, FLAGS.image_size]))
         image = (2.0 / 255.0) * new_image - 1.0
 
-        return image, zeropad_labels, zeropad_boxes
+        return image, zeropad_labels, zeropad_boxes, num_object

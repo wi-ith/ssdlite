@@ -22,7 +22,7 @@ tf.app.flags.DEFINE_string('tfrecords_dir', "path/to/tfrecords/folder",'')
 
 tf.app.flags.DEFINE_integer('image_size', 512,'')
 
-tf.app.flags.DEFINE_integer('max_boxes', 100,'')
+tf.app.flags.DEFINE_integer('max_boxes', 120,'')
 
 tf.app.flags.DEFINE_integer('num_train', 1000,'')
 
@@ -34,7 +34,7 @@ tf.app.flags.DEFINE_integer('input_queue_memory_factor', 4,'')
 
 tf.app.flags.DEFINE_integer('num_classes', 91,"")
 
-tf.app.flags.DEFINE_integer('batch_size', 16,"")
+tf.app.flags.DEFINE_integer('batch_size', 4,"")
 
 tf.app.flags.DEFINE_float('learning_rate', 0.001, '')
 

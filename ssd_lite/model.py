@@ -177,9 +177,9 @@ class MobileNetV2(object):
                                             normalizer_fn=None, normalizer_params=None,
                                             scope='BoxEncodingPredictor')
                 
-                output_ = tf.reshape(project_, [FLAGS.batch_size, -1, 4])
+                # output_ = tf.reshape(project_, [FLAGS.batch_size, -1, 4])
                 
-                return output_
+                return project_
             
             
     def ClassPredictor(self, feat, num_ratio, idx):
@@ -197,8 +197,9 @@ class MobileNetV2(object):
                 project_ = tc.layers.conv2d(depthwise_, num_ratio*FLAGS.num_classes, 1, activation_fn=None,
                                             normalizer_fn=None, normalizer_params=None,
                                             scope='ClassPredictor')
+
                 
-                output_ = tf.reshape(project_, [FLAGS.batch_size, -1, FLAGS.num_classes])
+                # output_ = tf.reshape(project_, [FLAGS.batch_size, -1, FLAGS.num_classes])
                 
-                return output_
+                return project_
             

@@ -151,14 +151,14 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 
-def loss(images, labels, boxes):
+def loss(images, labels, boxes, num_objects):
 
     # Calculate the average cross entropy loss across the batch.
     train_model = model.MobileNetV2(is_training=True, input_size=FLAGS.image_size)
     
     #depth 960, 1280, 512, 256, 256, 128
     feat_list=train_model._build_model(images)
-    ratio_list=[(2.,1.,1./2.)]+[(3.,2.,1.,1./2.,1./3.)]*5
+    ratio_list=[(2.,1.,1./2.)]+[(3.,2.,1.,1./2.,1./3.,1.)]*5
     #boxpredictor
     box_output_list=[]
     cls_output_list=[]
@@ -178,6 +178,7 @@ def loss(images, labels, boxes):
                                                          box_output_list,
                                                          labels,
                                                          boxes,
+                                                         num_objects,
                                                          positive_threshold=FLAGS.positive_threshold,
                                                          negative_threshold=FLAGS.negative_threshold,
                                                          num_classes=FLAGS.num_classes,

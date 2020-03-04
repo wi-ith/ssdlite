@@ -82,27 +82,16 @@ def train():
             'global_step', [],
             initializer=tf.constant_initializer(0), trainable=False)
 
-      # Calculate the learning rate schedule.
-      # num_batches_per_epoch = (cifar10.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN /
-      #                          FLAGS.batch_size / FLAGS.num_gpus)
-      # decay_steps = int(num_batches_per_epoch * cifar10.NUM_EPOCHS_PER_DECAY)
-
-      # Decay the learning rate exponentially based on the number of steps.
-      # lr = tf.train.exponential_decay(cifar10.INITIAL_LEARNING_RATE,
-      #                                 global_step,
-      #                                 decay_steps,
-      #                                 cifar10.LEARNING_RATE_DECAY_FACTOR,
-      #                                 staircase=True)
       lr=FLAGS.learning_rate
       # Create an optimizer that performs gradient descent.
       opt = tf.train.RMSPropOptimizer(lr, decay=0.9, momentum=0.9, epsilon=1)
 
       # Get images and labels for CIFAR-10.
-      images, labels, boxes = input.distorted_inputs(FLAGS.batch_size)
+      images, labels, boxes, num_objects = input.distorted_inputs(FLAGS.batch_size)
       # images = tf.reshape(images, [FLAGS.batch_size, FLAGS.image_size, FLAGS.image_size, 3])
       # labels = tf.reshape(labels, [FLAGS.batch_size])
       batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
-            [images, labels, boxes], capacity=2 * FLAGS.num_gpus)
+            [images, labels, boxes, num_objects], capacity=2 * FLAGS.num_gpus)
       # Calculate the gradients for each model tower.
       tower_grads = []
       with tf.variable_scope(tf.get_variable_scope()):
@@ -110,12 +99,13 @@ def train():
               with tf.device('/gpu:%d' % i):
                   with tf.name_scope('%s_%d' % ('tower', i)) as scope:
                       # Dequeues one batch for the GPU
-                      image_batch, label_batch, box_batch = batch_queue.dequeue()
+                      image_batch, label_batch, box_batch, num_objects_batch = batch_queue.dequeue()
                       # Calculate the loss for one tower of the CIFAR model. This function
                       # constructs the entire CIFAR model but shares the variables across
                       # all towers.
-                      loss = ssd.loss(image_batch, label_batch, box_batch)
-    
+                      cls_loss, loc_loss = ssd.loss(image_batch, label_batch, box_batch, num_objects_batch)
+                      regularization_loss = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+                      loss = cls_loss + loc_loss + regularization_loss
                       # Reuse variables for the next tower.
                       tf.get_variable_scope().reuse_variables()
     
@@ -131,6 +121,10 @@ def train():
       # We must calculate the mean of each gradient. Note that this is the
       # synchronization point across all towers.
       grads = average_gradients(tower_grads)
+
+      for var in tf.trainable_variables():
+          print(var.name)
+          summaries.append(tf.summary.histogram(var.op.name, var))
 
       # Add a summary to track the learning rate.
       summaries.append(tf.summary.scalar('learning_rate', lr))
@@ -178,38 +172,42 @@ def train():
                                saver=saver,
                                save_model_secs=0,
                                init_fn=init_fn)
+      config_ = tf.ConfigProto(allow_soft_placement=True)
+      config_.gpu_options.per_process_gpu_memory_fraction = 0.4
 
-      sess=sv.managed_session()
-      # Start the queue runners.
-      tf.train.start_queue_runners(sess=sess)
+      # sess=sv.managed_session(config=config_)
+      with sv.managed_session(config=config_) as sess:
+          # Start the queue runners.
+          sv.start_queue_runners(sess=sess)
 
-      summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
 
-      for step in xrange(FLAGS.max_steps):
-          start_time = time.time()
-          _, loss_value = sess.run([train_op, loss])
-          duration = time.time() - start_time
-    
-          assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
-    
-          if step % 10 == 0:
-              num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
-              examples_per_sec = num_examples_per_step / duration
-              sec_per_batch = duration / FLAGS.num_gpus
-    
-              format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
-                          'sec/batch)')
-              print (format_str % (datetime.now(), step, loss_value,
-                                   examples_per_sec, sec_per_batch))
-    
-          if step % 100 == 0:
-              summary_str = sess.run(summary_op)
-              summary_writer.add_summary(summary_str, step)
-    
-          # Save the model checkpoint periodically.
-          if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
-             checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
-             saver.save(sess, checkpoint_path, global_step=step)
+
+          for step in xrange(FLAGS.max_steps):
+              start_time = time.time()
+              sess.run(train_op)
+              loss_value = sess.run(loss)
+              duration = time.time() - start_time
+
+              assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
+
+              if step % 10 == 0:
+                  num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
+                  examples_per_sec = num_examples_per_step / duration
+                  sec_per_batch = duration / FLAGS.num_gpus
+
+                  format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
+                              'sec/batch)')
+                  print (format_str % (datetime.now(), step, loss_value,
+                                       examples_per_sec, sec_per_batch))
+
+              if step % 100 == 0:
+                  summary_str = sess.run(summary_op)
+                  # summary_writer.add_summary(summary_str, step)
+
+              # Save the model checkpoint periodically.
+              if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
+                 checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+                 saver.save(sess, checkpoint_path, global_step=step)
     
 
 def main(argv=None):  # pylint: disable=unused-argument
@@ -221,3 +219,7 @@ def main(argv=None):  # pylint: disable=unused-argument
 
 if __name__ == '__main__':
     tf.app.run()
+
+
+#MobilenetV2/expanded_conv_5/project/weights
+#MobilenetV2/expanded_conv_5/project/weights
