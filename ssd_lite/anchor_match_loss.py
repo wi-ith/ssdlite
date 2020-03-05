@@ -122,10 +122,10 @@ def encode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
     for k, (feature_cls,feature_loc) in enumerate(zip(feature_maps_cls,feature_maps_loc)):
         origin_shape=feature_cls.shape
         if k==0:
-            feature_concat_cls = tf.reshape(feature_cls, [origin_shape[0], -1, num_classes])
+            feature_concat_cls = tf.reshape(feature_cls, [origin_shape[0], -1, FLAGS.num_classes])
             feature_concat_loc = tf.reshape(feature_loc, [origin_shape[0], -1, 4])
         else:
-            reshape_featur_cls = tf.reshape(feature_cls, [origin_shape[0], -1, num_classes])
+            reshape_featur_cls = tf.reshape(feature_cls, [origin_shape[0], -1, FLAGS.num_classes])
             feature_concat_cls = tf.concat([feature_concat_cls,reshape_featur_cls],axis=1)
 
             reshape_featur_loc = tf.reshape(feature_loc, [origin_shape[0], -1, 4])
