@@ -3,13 +3,16 @@ import numpy as np
 
 FLAGS = tf.app.flags.FLAGS
 
+
+def soft_max(logits, axis=axis):
+    tile_depth = logits.shape[axis]
+    exp_logits = tf.exp(logits)
+    exp_sum = tf.tile(tf.reshape((tf.reduce_sum(exp_logits, axis=axis) + .1E-6), [-1, 1]), [1, tile_depth])
+    soft_max = exp_logits / exp_sum
+    return soft_max
+
 def focal_loss(one_hot_label,logits,gamma=2,axis=-1):
-    def soft_max(logits,axis=axis):
-        tile_depth=logits.shape[axis]
-        exp_logits=tf.exp(logits)
-        exp_sum=tf.tile(tf.reshape((tf.reduce_sum(exp_logits, axis=axis) + .1E-6),[-1,1]), [1,tile_depth])
-        soft_max=exp_logits/exp_sum
-        return soft_max
+
 
     prediction = soft_max(logits,axis)
     pos_pred=tf.reduce_sum(prediction*one_hot_label,axis=-1)
@@ -106,6 +109,73 @@ def make_anchor(feature_maps,
     return anchor_concat
 
 
+def encode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
+    '''
+
+    feature_maps_cls: [[batch_size, H, W, num_class * num_ratio], ...]
+    feature_maps_loc: [[batch_size, H, W, 4 * num_ratio], ...]
+
+    :return:
+
+    '''
+
+    for k, (feature_cls,feature_loc) in enumerate(zip(feature_maps_cls,feature_maps_loc)):
+        origin_shape=feature_cls.shape
+        if k==0:
+            feature_concat_cls = tf.reshape(feature_cls, [origin_shape[0], -1, num_classes])
+            feature_concat_loc = tf.reshape(feature_loc, [origin_shape[0], -1, 4])
+        else:
+            reshape_featur_cls = tf.reshape(feature_cls, [origin_shape[0], -1, num_classes])
+            feature_concat_cls = tf.concat([feature_concat_cls,reshape_featur_cls],axis=1)
+
+            reshape_featur_loc = tf.reshape(feature_loc, [origin_shape[0], -1, 4])
+            feature_concat_loc = tf.concat([feature_concat_loc, reshape_featur_loc], axis=1)
+
+    cls_logits_list = tf.unstack(feature_concat_cls,axis=0)
+    loc_logits_list = tf.unstack(feature_concat_loc,axis=0)
+
+    loc_pred_list=[]
+    cls_pred_list = []
+
+    reshape_anchor = tf.reshape(anchor_concat, [-1, 4])
+
+    anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
+    anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
+    anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
+    anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
+
+    for  cls_logit, loc_logit in zip(cls_logits_list, loc_logits_list):
+
+        logit_cx = loc_logit[:0]
+        logit_cy = loc_logit[:1]
+        logit_w = loc_logit[:2]
+        logit_h = loc_logit[:3]
+
+
+        pred_cx = logit_cx * anchor_w + anchor_cx
+        pred_cy = logit_cy * anchor_h + anchor_cy
+        pred_w = tf.exp(logit_w)*anchor_w
+        pred_h = tf.exp(logit_h)*anchor_h
+
+        ymin = pred_cy-0.5*pred_h
+        xmin = pred_cx-0.5*pred_w
+        ymax = pred_cy+0.5*pred_h
+        xmax = pred_cx+0.5*pred_w
+
+        pred_loc=tf.concat([ymin,xmin,ymax,xmax], axis=1)
+
+        cls_pred = soft_max(cls_logit)
+
+        loc_pred_list.append(pred_loc)
+
+        cls_pred_list.append(cls_pred)
+
+
+
+    return cls_pred_list, loc_pred_list
+
+
+
 def anchor_matching_cls_loc_loss(anchor_concat,
                                  feature_maps_cls,
                                  feature_maps_loc,
@@ -154,6 +224,13 @@ def anchor_matching_cls_loc_loss(anchor_concat,
     labels_list = tf.unstack(labels,axis=0)
     cls_logits_list = tf.unstack(feature_concat_cls,axis=0)
     loc_logits_list = tf.unstack(feature_concat_loc,axis=0)
+
+    reshape_anchor = tf.reshape(anchor_concat, [-1, 4])
+
+    anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
+    anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
+    anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
+    anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
 
     gt_offset_list = []
     cls_loss_list=[]
@@ -251,13 +328,6 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         gt_w = matched_boxes[:, 2] - matched_boxes[:, 0]
         gt_h = matched_boxes[:, 3] - matched_boxes[:, 1]
 
-        reshape_anchor = tf.reshape(anchor_concat, [-1, 4])
-
-        anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
-        anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
-        anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
-        anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
-
         gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
         gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h + .1e-5), [-1, 1])
         gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
@@ -286,9 +356,6 @@ def anchor_matching_cls_loc_loss(anchor_concat,
     cls_loss_sum = tf.reduce_sum(tf.stack(cls_loss_list))
     loc_loss_sum = tf.reduce_sum(tf.stack(loc_loss_list))
     return cls_loss_sum, loc_loss_sum
-
-import tensorflow as tf
-
 
 #
 # boxes=tf.convert_to_tensor([[[0.0, 0.0, 0.5, 0.5],[0.2, 0.1, 0.25, 0.15],[0.2, 0.2, 0.25, 0.25]],[[0.0, 0.0, 0.5, 0.5],[0.2, 0.1, 0.25, 0.15],[0.2, 0.2, 0.25, 0.25]]])

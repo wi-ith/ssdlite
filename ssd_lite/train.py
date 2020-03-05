@@ -200,12 +200,15 @@ def train():
                   print (format_str % (datetime.now(), step, loss_value,
                                        examples_per_sec, sec_per_batch))
 
+
               if step % 100 == 0:
                   summary_str = sess.run(summary_op)
                   # summary_writer.add_summary(summary_str, step)
 
               # Save the model checkpoint periodically.
               if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
+
+
                  checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                  saver.save(sess, checkpoint_path, global_step=step)
     
