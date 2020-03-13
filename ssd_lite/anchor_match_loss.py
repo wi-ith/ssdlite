@@ -146,10 +146,10 @@ def encode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
 
     for  cls_logit, loc_logit in zip(cls_logits_list, loc_logits_list):
 
-        logit_cx = loc_logit[:0]
-        logit_cy = loc_logit[:1]
-        logit_w = loc_logit[:2]
-        logit_h = loc_logit[:3]
+        logit_cx = loc_logit[:1]
+        logit_cy = loc_logit[:0]
+        logit_w = loc_logit[:3]
+        logit_h = loc_logit[:2]
 
 
         pred_cx = logit_cx * anchor_w + anchor_cx
@@ -335,7 +335,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
                                  [-1, 1])
 
-        gt_offset = tf.concat([gt_offset_cx, gt_offset_cy, gt_offset_w, gt_offset_h], axis=1)
+        gt_offset = tf.concat([gt_offset_cy, gt_offset_cx, gt_offset_h, gt_offset_w], axis=1)
 
         gt_offset = tf.cast(matched_boxes_mask,dtype=tf.float32)*gt_offset
         gt_offset_list.append(gt_offset)

@@ -219,8 +219,8 @@ def train():
                 if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
 ##############################################################
 
-                   checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
-                   saver.save(sess, checkpoint_path, global_step=step)
+                    checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+                    saver.save(sess, checkpoint_path, global_step=step)
 
 
 def main(argv=None):  # pylint: disable=unused-argument
