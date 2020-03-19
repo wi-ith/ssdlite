@@ -45,3 +45,9 @@ tf.app.flags.DEFINE_float('random_pad_prob', 0.4, '')
 tf.app.flags.DEFINE_float('positive_threshold', 0.5, '')
 
 tf.app.flags.DEFINE_float('negative_threshold', 0.5, '')
+
+##validation
+
+tf.app.flags.DEFINE_float('val_nms_threshold', 0.5, '')
+
+tf.app.flags.DEFINE_integer('num_validation', 1000,'')

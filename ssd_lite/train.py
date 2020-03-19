@@ -22,19 +22,11 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import ssd
 import input
+import validation
 import flags
 
-FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('train_dir', '/tmp/cifar10_train',
-                           """Directory where to write event logs """
-                           """and checkpoint.""")
-tf.app.flags.DEFINE_integer('max_steps', 1000000,
-                            """Number of batches to run.""")
-tf.app.flags.DEFINE_integer('num_gpus', 1,
-                            """How many GPUs to use.""")
-tf.app.flags.DEFINE_boolean('log_device_placement', False,
-                            """Whether to log device placement.""")
+FLAGS = tf.app.flags.FLAGS
 
 
 def average_gradients(tower_grads):
@@ -90,9 +82,6 @@ def train():
         # for train
         images, labels, boxes, num_objects = input.distorted_inputs(FLAGS.batch_size)
 
-        # for validation
-        val_images, val_labels, val_boxes, val_num_objects = input.inputs(1)
-
         batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
               [images, labels, boxes, num_objects], capacity=2 * FLAGS.num_gpus)
         # Calculate the gradients for each model tower.
@@ -127,6 +116,7 @@ def train():
 
 
         #validation
+        val_images, val_labels, val_boxes, val_num_objects = input.inputs(1)
         with tf.device('/gpu:0'):
             cls_pred, loc_pred = ssd.inference(val_images)
 
@@ -216,8 +206,34 @@ def train():
                     # summary_writer.add_summary(summary_str, step)
 
                 # Save the model checkpoint periodically.
-                if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
-##############################################################
+                #if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
+                if True:
+                    entire_TF=[]
+                    entire_score=[]
+                    entire_numGT=[]
+                    for val_step in range(FLAGS.num_validation):
+
+                        TF_array, TF_score, num_GT = validation.one_image_validation(val_boxes,
+                                                                                     val_labels,
+                                                                                     loc_pred,
+                                                                                     cls_pred)
+
+                        if len(entire_TF) == 0:
+                            entire_TF = TF_array
+                            entire_score = TF_score
+                            entire_numGT = num_GT
+                        else:
+                            for k_cls in range(FLAGS.num_classes):
+                                entire_TF[k_cls].extend(TF_array[k_cls])
+                                entire_score[k_cls].extend(TF_score[k_cls])
+                                entire_numGT[k_cls]+=num_GT[k_cls]
+
+                    entire_AP_sum = validation.compute_AP(entire_score,entire_TF,entire_numGT)
+
+                    mAP = np.sum(np.array(entire_AP_sum)) / np.sum(np.array(entire_AP_sum) != 0)
+
+                    print('class AP : ',entire_AP_sum)
+                    print('mAP : ',mAP)
 
                     checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                     saver.save(sess, checkpoint_path, global_step=step)
