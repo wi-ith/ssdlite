@@ -26,6 +26,8 @@ tf.app.flags.DEFINE_integer('max_boxes', 120,'')
 
 tf.app.flags.DEFINE_integer('num_train', 1000,'')
 
+tf.app.flags.DEFINE_integer('max_steps', 10000000,'')
+
 tf.app.flags.DEFINE_integer('num_readers', 4,'')
 
 tf.app.flags.DEFINE_integer('num_preprocess_threads', 4,'')
@@ -35,6 +37,8 @@ tf.app.flags.DEFINE_integer('input_queue_memory_factor', 4,'')
 tf.app.flags.DEFINE_integer('num_classes', 91,"")
 
 tf.app.flags.DEFINE_integer('batch_size', 4,"")
+
+tf.app.flags.DEFINE_integer('num_gpus', 4,'')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.001, '')
 

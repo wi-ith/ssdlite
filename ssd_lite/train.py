@@ -207,16 +207,25 @@ def train():
 
                 # Save the model checkpoint periodically.
                 #if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
+                # if step%1000 == 0:
                 if True:
+                    print('start validation')
                     entire_TF=[]
                     entire_score=[]
                     entire_numGT=[]
                     for val_step in range(FLAGS.num_validation):
+                        if val_step%100==0:
+                            print(val_step,' / ',FLAGS.num_validation)
+                        val_GT_boxes, val_GT_cls, val_loc_pred, val_cls_pred=sess.run([val_boxes,val_labels,loc_pred,cls_pred])
+                        print(val_loc_pred)
+                        print(val_GT_boxes)
+                        print(val_cls_pred)
+                        print(val_GT_cls)
 
-                        TF_array, TF_score, num_GT = validation.one_image_validation(val_boxes,
-                                                                                     val_labels,
-                                                                                     loc_pred,
-                                                                                     cls_pred)
+                        TF_array, TF_score, num_GT = validation.one_image_validation(val_GT_boxes,
+                                                                                     val_GT_cls,
+                                                                                     val_loc_pred,
+                                                                                     val_cls_pred)
 
                         if len(entire_TF) == 0:
                             entire_TF = TF_array
@@ -224,8 +233,9 @@ def train():
                             entire_numGT = num_GT
                         else:
                             for k_cls in range(FLAGS.num_classes):
-                                entire_TF[k_cls].extend(TF_array[k_cls])
-                                entire_score[k_cls].extend(TF_score[k_cls])
+                                entire_TF[k_cls]=np.concatenate([entire_TF[k_cls],TF_array[k_cls]],axis=0)
+                                entire_score[k_cls]=np.concatenate([entire_score[k_cls],TF_score[k_cls]],axis=0)
+                                # entire_score[k_cls].extend(TF_score[k_cls])
                                 entire_numGT[k_cls]+=num_GT[k_cls]
 
                     entire_AP_sum = validation.compute_AP(entire_score,entire_TF,entire_numGT)
@@ -235,14 +245,12 @@ def train():
                     print('class AP : ',entire_AP_sum)
                     print('mAP : ',mAP)
 
-                    checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+                    checkpoint_path = os.path.join(FLAGS.ckpt_save_path, 'model.ckpt')
                     saver.save(sess, checkpoint_path, global_step=step)
 
 
+
 def main(argv=None):  # pylint: disable=unused-argument
-    if tf.gfile.Exists(FLAGS.train_dir):
-        tf.gfile.DeleteRecursively(FLAGS.train_dir)
-    tf.gfile.MakeDirs(FLAGS.train_dir)
     train()
 
 

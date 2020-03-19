@@ -4,7 +4,7 @@ import numpy as np
 FLAGS = tf.app.flags.FLAGS
 
 
-def soft_max(logits, axis=axis):
+def soft_max(logits, axis=-1):
     tile_depth = logits.shape[axis]
     exp_logits = tf.exp(logits)
     exp_sum = tf.tile(tf.reshape((tf.reduce_sum(exp_logits, axis=axis) + .1E-6), [-1, 1]), [1, tile_depth])
@@ -145,12 +145,10 @@ def encode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
     anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
 
     for  cls_logit, loc_logit in zip(cls_logits_list, loc_logits_list):
-
-        logit_cx = loc_logit[:1]
-        logit_cy = loc_logit[:0]
-        logit_w = loc_logit[:3]
-        logit_h = loc_logit[:2]
-
+        logit_cx = loc_logit[:, 1]
+        logit_cy = loc_logit[:, 0]
+        logit_w = loc_logit[:, 3]
+        logit_h = loc_logit[:, 2]
 
         pred_cx = logit_cx * anchor_w + anchor_cx
         pred_cy = logit_cy * anchor_h + anchor_cy
@@ -162,7 +160,7 @@ def encode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
         ymax = pred_cy+0.5*pred_h
         xmax = pred_cx+0.5*pred_w
 
-        pred_loc=tf.concat([ymin,xmin,ymax,xmax], axis=1)
+        pred_loc=tf.stack([ymin,xmin,ymax,xmax], axis=1)
 
         cls_pred = soft_max(cls_logit)
 

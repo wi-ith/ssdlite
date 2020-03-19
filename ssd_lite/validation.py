@@ -78,11 +78,11 @@ def one_image_validation(GT_loc,
 
     cls_idx = np.argmax(cls_pred,axis=1)
 
-    num_classes=5
+
     clsPred_by_class=[]
     locPred_by_class=[]
 
-    for k in range(num_classes):
+    for k in range(FLAGS.num_classes):
         k_cls_idx = np.where(cls_idx==k)
         k_cls_pred = cls_pred[k_cls_idx]
         k_cls_loc = loc_pred[k_cls_idx]
@@ -119,7 +119,7 @@ def one_image_validation(GT_loc,
     TF_array_by_class=[]
     TF_score_by_class=[]
     num_GT_by_class=[]
-    for k in range(num_classes):
+    for k in range(FLAGS.num_classes):
         k_cls_index = np.where(GT_cls == k)
         num_GT_by_class.append(np.sum(np.int32(GT_cls == k)))
 
