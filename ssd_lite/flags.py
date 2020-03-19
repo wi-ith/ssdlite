@@ -38,7 +38,7 @@ tf.app.flags.DEFINE_integer('num_classes', 91,"")
 
 tf.app.flags.DEFINE_integer('batch_size', 4,"")
 
-tf.app.flags.DEFINE_integer('num_gpus', 4,'')
+tf.app.flags.DEFINE_integer('num_gpus', 1,'')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.001, '')
 

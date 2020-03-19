@@ -62,7 +62,7 @@ def inference(images):
 
         inference_model = model.MobileNetV2(is_training=False, input_size=FLAGS.image_size)
         feat_list=inference_model._build_model(images)
-        ratio_list = [(2., 1., 1. / 2.)] + [(3., 2., 1., 1. / 2., 1. / 3., 1.)] * 5
+        ratio_list = [(1.0, 2.0, 1.0 / 2.0)] + [(1.0, 2.0, 1.0 / 2.0, 3.0, 1.0 / 3.0, 1.0)] * 5
         box_output_list = []
         cls_output_list = []
         for k, (ratio, feat) in enumerate(zip(ratio_list, feat_list)):
@@ -88,7 +88,7 @@ def loss(images, labels, boxes, num_objects):
 
         #depth 960, 1280, 512, 256, 256, 128
         feat_list=train_model._build_model(images)
-        ratio_list = [(2., 1., 1. / 2.)] + [(3., 2., 1., 1. / 2., 1. / 3., 1.)] * 5
+        ratio_list = [(1.0, 2.0, 1.0 / 2.0)] + [(1.0, 2.0, 1.0 / 2.0, 3.0, 1.0 / 3.0, 1.0)] * 5
         #boxpredictor
         box_output_list=[]
         cls_output_list=[]

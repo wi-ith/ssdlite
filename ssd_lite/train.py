@@ -66,7 +66,6 @@ def average_gradients(tower_grads):
 
 
 def train():
-    """Train CIFAR-10 for a number of steps."""
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         # Create a variable to count the number of train() calls. This equals the
         # number of batches processed * FLAGS.num_gpus.
@@ -103,6 +102,8 @@ def train():
 
                         # Retain the summaries from the final tower.
                         summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
+
+                        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope)
 
                         # Calculate the gradients for the batch of data on this CIFAR tower.
                         grads = opt.compute_gradients(loss)
@@ -142,7 +143,7 @@ def train():
             summaries.append(tf.summary.histogram(var.op.name, var))
 
         # Create a saver.
-        saver = tf.train.Saver(tf.global_variables())
+        saver = tf.train.Saver(max_to_keep=20)
 
         # Build the summary operation from the last tower summaries.
         summary_op = tf.summary.merge(summaries)
@@ -167,6 +168,9 @@ def train():
             print('training ckpt')
             init_fn = None
 
+        with tf.control_dependencies(update_ops):
+            train_op = opt.apply_gradients(grads, global_step=global_step)
+
         sv = tf.train.Supervisor(logdir=FLAGS.ckpt_save_path,
                                  summary_op=None,
                                  saver=saver,
@@ -190,7 +194,7 @@ def train():
 
                 assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
-                if step % 10 == 0:
+                if step % 30 == 0:
                     num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
                     examples_per_sec = num_examples_per_step / duration
                     sec_per_batch = duration / FLAGS.num_gpus
@@ -203,28 +207,18 @@ def train():
 
                 if step % 100 == 0:
                     summary_str = sess.run(summary_op)
-                    # summary_writer.add_summary(summary_str, step)
 
-                # Save the model checkpoint periodically.
-                #if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
-                # if step%1000 == 0:
-                if True:
+                if step % int(FLAGS.num_train / FLAGS.batch_size) == 0:
+                #if step % 1000 == 0 and step!=0:
+                #if True:
                     print('start validation')
                     entire_TF=[]
                     entire_score=[]
                     entire_numGT=[]
                     for val_step in range(FLAGS.num_validation):
-                        if val_step%100==0:
+                        if val_step%500==0:
                             print(val_step,' / ',FLAGS.num_validation)
                         val_GT_boxes, val_GT_cls, val_loc_pred, val_cls_pred, num_objects = sess.run([val_boxes,val_labels,loc_pred,cls_pred,val_num_objects])
-                        print(val_loc_pred[0])
-                        print(val_GT_boxes[0])
-                        print(val_cls_pred[0])
-                        print(val_GT_cls[0])
-                        print('val_loc_pred : ',val_loc_pred[0].shape)
-                        print('val_GT_boxes : ', val_GT_boxes[0].shape)
-                        print('val_cls_pred : ', val_cls_pred[0].shape)
-                        print('val_GT_cls : ', val_GT_cls[0].shape)
 
                         TF_array, TF_score, num_GT = validation.one_image_validation(val_GT_boxes,
                                                                                      val_GT_cls,

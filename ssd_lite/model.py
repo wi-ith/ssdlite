@@ -28,7 +28,7 @@ class MobileNetV2(object):
         self.i = 0
         with arg_scope([tc.layers.conv2d, tc.layers.separable_conv2d],
                        weights_regularizer=tc.layers.l2_regularizer(_WEIGHT_DECAY)):
-            with tf.variable_scope('MobilenetV2', reuse=tf.AUTO_REUSE):
+            with tf.variable_scope('FeatureExtractor/MobilenetV2', reuse=tf.AUTO_REUSE):
                 # image_copy=tf.identity(image)
                 output = tc.layers.conv2d(image, 32, 3, 2,
                                           activation_fn=tf.nn.relu6,

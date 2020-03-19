@@ -241,7 +241,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         boxes_ = tf.concat([[[0,0,0,0],[0,0,0,0]],boxes_[:-2,:]],axis=0)
 
         #num_obj = tf.constant(boxes.get_shape().as_list()[0])
-        num_obj = num_objects_
+        num_obj = num_objects_+2
 
         # 100 x 4
         # paded_boxes = tf.pad(boxes_, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
@@ -294,7 +294,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         keep_one_pos_label=tf.reduce_sum(tf.cast(positive_mask, dtype=tf.float32), axis=0)
         non_matched_label_index = keep_one_pos_label[2:num_obj]
         non_matched_label_mask = tf.cast(tf.equal(non_matched_label_index,0.), dtype=tf.float32)
-        non_matched_label_mask = tf.pad(tf.reshape(non_matched_label_mask,[-1,1]), tf.convert_to_tensor([[2, max_boxes - (num_obj+2)],[0,0]]), "CONSTANT")
+        non_matched_label_mask = tf.pad(tf.reshape(non_matched_label_mask,[-1,1]), tf.convert_to_tensor([[2, max_boxes - (num_obj)],[0,0]]), "CONSTANT")
         non_matched_label_mask = tf.squeeze(non_matched_label_mask)
         non_matched_label_mask = tf.tile(tf.reshape(non_matched_label_mask, [1, max_boxes]), [iou.get_shape().as_list()[0], 1])
         non_matched_label_iou = iou*non_matched_label_mask
