@@ -38,7 +38,13 @@ FLAGS = tf.app.flags.FLAGS
 def one_image_validation(GT_loc,
                          GT_cls,
                          loc_pred,
-                         cls_pred):
+                         cls_pred,
+                         num_objects):
+    GT_loc=np.squeeze(GT_loc)
+    GT_cls = np.squeeze(GT_cls)
+    loc_pred = np.squeeze(loc_pred)
+    cls_pred = np.squeeze(cls_pred)
+    num_objects = np.squeeze(num_objects)
 
     def iou(boxes1,boxes2):
         if len(boxes1.shape)==1:
@@ -119,6 +125,8 @@ def one_image_validation(GT_loc,
     TF_array_by_class=[]
     TF_score_by_class=[]
     num_GT_by_class=[]
+    GT_loc = GT_loc[:num_objects,:]
+    GT_cls = GT_cls[:num_objects]
     for k in range(FLAGS.num_classes):
         k_cls_index = np.where(GT_cls == k)
         num_GT_by_class.append(np.sum(np.int32(GT_cls == k)))

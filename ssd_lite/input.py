@@ -48,18 +48,18 @@ def parse_tfrecords(example_serialized):
     context, sequence = tf.parse_single_sequence_example(
         example_serialized,
         context_features={
-            'bbox/xmin':
+            'image/object/bbox/xmin':
                 tf.VarLenFeature(tf.float32),
-            'bbox/xmax':
+            'image/object/bbox/xmax':
                 tf.VarLenFeature(tf.float32),
-            'bbox/ymin':
+            'image/object/bbox/ymin':
                 tf.VarLenFeature(tf.float32),
-            'bbox/ymax':
+            'image/object/bbox/ymax':
                 tf.VarLenFeature(tf.float32),
                                 
-            'class/text':
+            'image/object/class/text':
                 tf.VarLenFeature(tf.string),
-            'class/label':
+            'image/object/class/label':
                 tf.VarLenFeature(tf.int64),
                                 
             'image/height':
@@ -76,15 +76,15 @@ def parse_tfrecords(example_serialized):
     image_encoded = context['image/encoded']
     image_encoded = decode_jpeg(image_encoded, 3)
 
-    xmin = tf.expand_dims(context['bbox/xmin'].values, 0)
-    ymin = tf.expand_dims(context['bbox/ymin'].values, 0)
-    xmax = tf.expand_dims(context['bbox/xmax'].values, 0)
-    ymax = tf.expand_dims(context['bbox/ymax'].values, 0)
+    xmin = tf.expand_dims(context['image/object/bbox/xmin'].values, 0)
+    ymin = tf.expand_dims(context['image/object/bbox/ymin'].values, 0)
+    xmax = tf.expand_dims(context['image/object/bbox/xmax'].values, 0)
+    ymax = tf.expand_dims(context['image/object/bbox/ymax'].values, 0)
     bbox = tf.concat(axis=0, values=[ymin, xmin, ymax, xmax])
     bbox = tf.transpose(bbox, [1, 0])
     
     #class_name = context['class/text'].values
-    class_id = tf.cast(context['class/label'].values, dtype=tf.int32)
+    class_id = tf.cast(context['image/object/class/label'].values, dtype=tf.int32)
     
     #height = context['image/height']
     #width = context['image/width']    
@@ -466,6 +466,7 @@ def eval_augmentation(image_encoded, labels, boxes):
 
         zeropad_boxes.set_shape([max_boxes, 4])
         zeropad_labels.set_shape([max_boxes])
+
         image_encoded.set_shape([None, None, 3])
         with tf.name_scope('ResizeImage'):
             new_image = tf.image.resize_images(image_encoded, tf.stack([FLAGS.image_size, FLAGS.image_size]))

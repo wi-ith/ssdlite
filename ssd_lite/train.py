@@ -216,16 +216,21 @@ def train():
                     for val_step in range(FLAGS.num_validation):
                         if val_step%100==0:
                             print(val_step,' / ',FLAGS.num_validation)
-                        val_GT_boxes, val_GT_cls, val_loc_pred, val_cls_pred=sess.run([val_boxes,val_labels,loc_pred,cls_pred])
-                        print(val_loc_pred)
-                        print(val_GT_boxes)
-                        print(val_cls_pred)
-                        print(val_GT_cls)
+                        val_GT_boxes, val_GT_cls, val_loc_pred, val_cls_pred, num_objects = sess.run([val_boxes,val_labels,loc_pred,cls_pred,val_num_objects])
+                        print(val_loc_pred[0])
+                        print(val_GT_boxes[0])
+                        print(val_cls_pred[0])
+                        print(val_GT_cls[0])
+                        print('val_loc_pred : ',val_loc_pred[0].shape)
+                        print('val_GT_boxes : ', val_GT_boxes[0].shape)
+                        print('val_cls_pred : ', val_cls_pred[0].shape)
+                        print('val_GT_cls : ', val_GT_cls[0].shape)
 
                         TF_array, TF_score, num_GT = validation.one_image_validation(val_GT_boxes,
                                                                                      val_GT_cls,
                                                                                      val_loc_pred,
-                                                                                     val_cls_pred)
+                                                                                     val_cls_pred,
+                                                                                     num_objects)
 
                         if len(entire_TF) == 0:
                             entire_TF = TF_array
