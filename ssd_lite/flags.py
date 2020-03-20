@@ -52,6 +52,8 @@ tf.app.flags.DEFINE_float('negative_threshold', 0.5, '')
 
 ##validation
 
-tf.app.flags.DEFINE_float('val_nms_threshold', 0.5, '')
+tf.app.flags.DEFINE_float('val_nms_threshold', 1.0, '')
+
+tf.app.flags.DEFINE_float('val_matching_threshold', 0.5, '')
 
 tf.app.flags.DEFINE_integer('num_validation', 1000,'')

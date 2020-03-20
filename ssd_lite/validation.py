@@ -145,9 +145,10 @@ def one_image_validation(GT_loc,
         maxiou_box_id=np.argmax(GT_pred_iou,axis=1)
 
         for x, TF in enumerate(TF_array):
-            if found_gt[maxiou_box_id[x]]==0:
-                TF_array[x]=1
-                found_gt[maxiou_box_id[x]]=1
+            if np.max(GT_pred_iou[x,:]) > FLAGS.val_matching_threshold:
+                if found_gt[maxiou_box_id[x]]==0:
+                    TF_array[x]=1
+                    found_gt[maxiou_box_id[x]]=1
         TF_array_by_class.append(TF_array)
         TF_score_by_class.append(k_class_nms_score[k])
 
@@ -167,7 +168,7 @@ def one_image_validation(GT_loc,
 # entire_numGT=[]
 
 def cover_up(list, idx, value):
-    if list[idx] < value:
+    if list[idx] < value and idx >= 0:
         list[idx]=value
         cover_up(list, idx-1,value)
     else:
@@ -215,7 +216,17 @@ def compute_AP(entire_score,entire_TF,entire_numGT):
             k_cls_precision.append(precision)
             k_cls_recall.append(recall)
             if num_pred > 0:
-                cover_up(k_cls_precision, num_pred - 1, precision)
+                cover_cnt=num_pred-1
+                while(cover_cnt>=0):
+                    if k_cls_precision[cover_cnt] < precision:
+                        k_cls_precision[cover_cnt]=precision
+                        cover_cnt=cover_cnt-1
+                    elif cover_cnt<0:
+                        break
+                    else:
+                        break
+
+                # cover_up(k_cls_precision, num_pred - 1, precision)
         entire_presicion.append(k_cls_precision)
         entire_recall.append(k_cls_recall)
 

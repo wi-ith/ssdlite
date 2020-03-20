@@ -76,7 +76,7 @@ def inference(images):
                                         0.95,
                                         ratio_list)
 
-        cls_pred, loc_pred = aml.encode_logits(anchor_concat, cls_output_list, box_output_list)
+        cls_pred, loc_pred = aml.decode_logits(anchor_concat, cls_output_list, box_output_list)
 
         return cls_pred, loc_pred
 

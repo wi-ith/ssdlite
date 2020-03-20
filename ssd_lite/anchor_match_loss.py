@@ -57,22 +57,23 @@ def make_anchor(feature_maps,
 
         anchor_size=feature.get_shape().as_list()[1:3]
 
-        coordi_range = tf.cast(tf.range(0, anchor_size[0], 1), dtype=tf.float32)
+        coordi_range_y = tf.cast(tf.range(0, anchor_size[0], 1), dtype=tf.float32)
+        coordi_range_x = tf.cast(tf.range(0, anchor_size[1], 1), dtype=tf.float32)
 
-        y1 = tf.reshape(coordi_range, [anchor_size[0], 1])
-        x1 = tf.reshape(coordi_range, [1, anchor_size[0]])
+        y1 = tf.reshape(coordi_range_y, [anchor_size[0], 1])
+        x1 = tf.reshape(coordi_range_x, [1, anchor_size[1]])
 
         y1 = tf.tile(y1, [1, anchor_size[0]])
-        x1 = tf.tile(x1, [anchor_size[0], 1])
+        x1 = tf.tile(x1, [anchor_size[1], 1])
 
         y1 = tf.reshape(y1, [-1, anchor_size[0]])
-        x1 = tf.reshape(x1, [-1, anchor_size[0]])
+        x1 = tf.reshape(x1, [-1, anchor_size[1]])
 
-        anchor_x1y1 = tf.stack([x1, y1], axis=2)
-        anchor_x2y2 = anchor_x1y1 + 1
+        anchor_y1x1 = tf.stack([y1, x1], axis=2)
+        anchor_y2x2 = anchor_y1x1 + 1
 
-        anchor_x1y1 = anchor_x1y1/anchor_size[0]
-        anchor_x2y2 = anchor_x2y2 / anchor_size[0]
+        anchor_y1x1 = anchor_y1x1 / anchor_size[0]
+        anchor_y2x2 = anchor_y2x2 / anchor_size[1]
 
         scale_anchor = []
         # ratio = width / height
@@ -90,15 +91,15 @@ def make_anchor(feature_maps,
 
             x_offset = 1. / 2. * (1. / anchor_size[0] - scale_ * tf.math.sqrt(one_ratio))
             y_offset = 1. / 2. * (1. / anchor_size[0] - scale_ / tf.math.sqrt(one_ratio))
-            anchor_x1y1 = tf.reshape(anchor_x1y1, [-1, 2])
-            anchor_x2y2 = tf.reshape(anchor_x2y2, [-1, 2])
-            anchor_x1 = anchor_x1y1[:, 0] + x_offset
-            anchor_y1 = anchor_x1y1[:, 1] + y_offset
-            anchor_x2 = anchor_x2y2[:, 0] - x_offset
-            anchor_y2 = anchor_x2y2[:, 1] - y_offset
+            anchor_y1x1 = tf.reshape(anchor_y1x1, [-1, 2])
+            anchor_y2x2 = tf.reshape(anchor_y2x2, [-1, 2])
+            anchor_y1 = anchor_y1x1[:, 0] + y_offset
+            anchor_x1 = anchor_y1x1[:, 1] + x_offset
+            anchor_y2 = anchor_y2x2[:, 0] - y_offset
+            anchor_x2 = anchor_y2x2[:, 1] - x_offset
 
-            anchor_x1y1x2y2 = tf.stack([anchor_x1, anchor_y1, anchor_x2, anchor_y2], axis=1)
-            scale_anchor.append(anchor_x1y1x2y2)
+            anchor_y1x1y2x2 = tf.stack([anchor_y1, anchor_x1, anchor_y2, anchor_x2], axis=1)
+            scale_anchor.append(anchor_y1x1y2x2)
 
         # num_feature_block x num_ratio x 4
         scale_anchor = tf.stack(scale_anchor, axis=1)
@@ -109,7 +110,7 @@ def make_anchor(feature_maps,
     return anchor_concat
 
 
-def encode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
+def decode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
     '''
 
     feature_maps_cls: [[batch_size, H, W, num_class * num_ratio], ...]
@@ -139,26 +140,26 @@ def encode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
 
     reshape_anchor = tf.reshape(anchor_concat, [-1, 4])
 
-    anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
-    anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
-    anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
-    anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
+    anchor_cy = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
+    anchor_cx = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
+    anchor_h = reshape_anchor[:, 2] - reshape_anchor[:, 0]
+    anchor_w = reshape_anchor[:, 3] - reshape_anchor[:, 1]
 
     for  cls_logit, loc_logit in zip(cls_logits_list, loc_logits_list):
-        logit_cx = loc_logit[:, 1]
         logit_cy = loc_logit[:, 0]
-        logit_w = loc_logit[:, 3]
+        logit_cx = loc_logit[:, 1]
         logit_h = loc_logit[:, 2]
+        logit_w = loc_logit[:, 3]
 
-        pred_cx = logit_cx * anchor_w + anchor_cx
         pred_cy = logit_cy * anchor_h + anchor_cy
+        pred_cx = logit_cx * anchor_w + anchor_cx
+        pred_h = tf.exp(logit_h) * anchor_h
         pred_w = tf.exp(logit_w)*anchor_w
-        pred_h = tf.exp(logit_h)*anchor_h
 
-        ymin = pred_cy-0.5*pred_h
-        xmin = pred_cx-0.5*pred_w
-        ymax = pred_cy+0.5*pred_h
-        xmax = pred_cx+0.5*pred_w
+        ymin = pred_cy-pred_h/2.
+        xmin = pred_cx-pred_w/2.
+        ymax = pred_cy+pred_h/2.
+        xmax = pred_cx+pred_w/2.
 
         pred_loc=tf.stack([ymin,xmin,ymax,xmax], axis=1)
 
@@ -225,10 +226,10 @@ def anchor_matching_cls_loc_loss(anchor_concat,
 
     reshape_anchor = tf.reshape(anchor_concat, [-1, 4])
 
-    anchor_cx = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
-    anchor_cy = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
-    anchor_w = reshape_anchor[:, 2] - reshape_anchor[:, 0]
-    anchor_h = reshape_anchor[:, 3] - reshape_anchor[:, 1]
+    anchor_cy = (reshape_anchor[:, 0] + reshape_anchor[:, 2]) / 2.
+    anchor_cx = (reshape_anchor[:, 1] + reshape_anchor[:, 3]) / 2.
+    anchor_h = reshape_anchor[:, 2] - reshape_anchor[:, 0]
+    anchor_w = reshape_anchor[:, 3] - reshape_anchor[:, 1]
 
     gt_offset_list = []
     cls_loss_list=[]
@@ -241,10 +242,12 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         boxes_ = tf.concat([[[0,0,0,0],[0,0,0,0]],boxes_[:-2,:]],axis=0)
 
         #num_obj = tf.constant(boxes.get_shape().as_list()[0])
-        num_obj = num_objects_+2
+        num_obj = num_objects_ + 2
 
-        # 100 x 4
-        # paded_boxes = tf.pad(boxes_, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
+
+        # num_obj = num_objects_
+        # boxes_ = tf.pad(boxes_, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
+
         paded_boxes = tf.reshape(boxes_, [max_boxes, 4])
 
         # [1917,4]
@@ -256,23 +259,23 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         tile_anchor = tf.tile(tf.expand_dims(anchor_concat, axis=1), [1, paded_boxes.shape[0], 1])
 
 
-        inter_x1 = tf.maximum(tile_GT[:, :, 0], tile_anchor[:, :, 0])
-        inter_y1 = tf.maximum(tile_GT[:, :, 1], tile_anchor[:, :, 1])
-        inter_x2 = tf.minimum(tile_GT[:, :, 2], tile_anchor[:, :, 2])
-        inter_y2 = tf.minimum(tile_GT[:, :, 3], tile_anchor[:, :, 3])
+        inter_y1 = tf.maximum(tile_GT[:, :, 0], tile_anchor[:, :, 0])
+        inter_x1 = tf.maximum(tile_GT[:, :, 1], tile_anchor[:, :, 1])
+        inter_y2 = tf.minimum(tile_GT[:, :, 2], tile_anchor[:, :, 2])
+        inter_x2 = tf.minimum(tile_GT[:, :, 3], tile_anchor[:, :, 3])
 
         # num_anchor x 100
         GT_area = (tile_GT[:, :, 2] - tile_GT[:, :, 0]) * (tile_GT[:, :, 3] - tile_GT[:, :, 1])
         anchor_area = (tile_anchor[:, :, 2] - tile_anchor[:, :, 0]) * (tile_anchor[:, :, 3] - tile_anchor[:, :, 1])
 
         # num_anchor x 100
-        inter_width = inter_x2 - inter_x1
         inter_height = inter_y2 - inter_y1
-        width_zero_mask = tf.cast(tf.greater(inter_width, 0.), dtype=tf.float32)
+        inter_width = inter_x2 - inter_x1
         height_zero_mask = tf.cast(tf.greater(inter_height, 0.), dtype=tf.float32)
-        inter_width = inter_width * width_zero_mask
+        width_zero_mask = tf.cast(tf.greater(inter_width, 0.), dtype=tf.float32)
         inter_height = inter_height * height_zero_mask
-        intersection_area = inter_width * inter_height
+        inter_width = inter_width * width_zero_mask
+        intersection_area = inter_height * inter_width
 
         # num_anchor
         iou = intersection_area / (GT_area + anchor_area - intersection_area)
@@ -318,19 +321,22 @@ def anchor_matching_cls_loc_loss(anchor_concat,
 
         matched_label = tf.gather(labels_, pos_label_idx)
         matched_boxes = tf.gather(boxes_, pos_label_idx)
-        matched_boxes_mask = tf.greater(matched_boxes,0.)
+
+        matched_mask = tf.greater(pos_label_idx,0)
+        matched_boxes_mask = tf.stack([matched_mask]*4,axis=1)
 
         #convert gt coordinate to offset
-        gt_cx = (matched_boxes[:, 0] + matched_boxes[:, 2]) / 2.
-        gt_cy = (matched_boxes[:, 1] + matched_boxes[:, 3]) / 2.
-        gt_w = matched_boxes[:, 2] - matched_boxes[:, 0]
-        gt_h = matched_boxes[:, 3] - matched_boxes[:, 1]
+        gt_cy = (matched_boxes[:, 0] + matched_boxes[:, 2]) / 2.
+        gt_cx = (matched_boxes[:, 1] + matched_boxes[:, 3]) / 2.
+        gt_h = matched_boxes[:, 2] - matched_boxes[:, 0]
+        gt_w = matched_boxes[:, 3] - matched_boxes[:, 1]
 
-        gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
         gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h + .1e-5), [-1, 1])
-        gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
-                                 [-1, 1])
+        gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
+
         gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
+                                 [-1, 1])
+        gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
                                  [-1, 1])
 
         gt_offset = tf.concat([gt_offset_cy, gt_offset_cx, gt_offset_h, gt_offset_w], axis=1)
@@ -345,17 +351,21 @@ def anchor_matching_cls_loc_loss(anchor_concat,
             loss_collection=None,
             reduction=tf.losses.Reduction.NONE
         )
+        loc_loss = loc_loss / tf.reduce_sum(tf.cast(matched_mask,dtype=tf.float32))
 
         one_hot_label=tf.one_hot(tf.cast(matched_label,dtype=tf.int32),depth=num_classes)
         cls_loss=focal_loss(one_hot_label,cls_logit,gamma=2)
+
+        cls_loss = cls_loss / tf.reduce_sum(tf.cast(matched_mask, dtype=tf.float32))
+
         cls_loss_list.append(cls_loss)
         loc_loss_list.append(loc_loss)
 
     cls_loss_sum = tf.reduce_sum(tf.stack(cls_loss_list))
     loc_loss_sum = tf.reduce_sum(tf.stack(loc_loss_list))
     return cls_loss_sum, loc_loss_sum
-
 #
+# #
 # boxes=tf.convert_to_tensor([[[0.0, 0.0, 0.5, 0.5],[0.2, 0.1, 0.25, 0.15],[0.2, 0.2, 0.25, 0.25]],[[0.0, 0.0, 0.5, 0.5],[0.2, 0.1, 0.25, 0.15],[0.2, 0.2, 0.25, 0.25]]])
 # labels=tf.convert_to_tensor([[1., 2., 7.],[1., 2., 7.]])
 #
@@ -376,24 +386,28 @@ def anchor_matching_cls_loc_loss(anchor_concat,
 #
 # ratio_list=[[1., 2., 1./2.]]+[[1., 2., 1. / 2., 3., 1. / 3., 1.]]*5
 # # print(ratio_list)
-
+#
 #
 # max_boxes=100
 # negative_threshold=0.3
 # positive_threshold=0.5
-#     min_scale=0.2
-#     max_scale=0.95
+# min_scale=0.2
+# max_scale=0.95
 #
 # anchor_concat=make_anchor(feature_maps_cls, min_scale, max_scale, ratio_list)
 # res=anchor_matching_cls_loc_loss(anchor_concat,
 #                                  feature_maps_cls,
 #                                  feature_maps_loc,
-#                                  boxes,
 #                                  labels,
+#                                  boxes,
+#                                  tf.convert_to_tensor(np.array([3,3])),
 #                                  positive_threshold,
 #                                  negative_threshold,
 #                                  num_classes,
 #                                  max_boxes)
+#
+#
 # sess=tf.Session()
-# tt=sess.run(res)
-# print(tt)
+# tt=sess.run(anchor_concat)
+# print(tt.shape)
+# tt[-30:-6,:]

@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0 \
 python3 train.py \
-  --ckpt_save_path=./ckpt/0320/ \
+  --ckpt_save_path=./ckpt/0321/ \
   --pretrained_ckpt_path=../pretrained/ssdlite_mobilenet/model.ckpt \
   --mode=train \
   --tfrecords_dir=/home/kdg/tfrecords/google_mscoco/32k \
