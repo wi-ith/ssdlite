@@ -6,16 +6,18 @@ FLAGS = tf.app.flags.FLAGS
 
 def soft_max(logits, axis=-1):
     tile_depth = logits.shape[axis]
-    exp_logits = tf.exp(logits)
-    exp_sum = tf.tile(tf.reshape((tf.reduce_sum(exp_logits, axis=axis) + .1E-6), [-1, 1]), [1, tile_depth])
-    soft_max = exp_logits / exp_sum
-    return soft_max
+    max_value = tf.tile(tf.reshape((tf.reduce_max(logits, axis=axis)), [-1, 1]), [1, tile_depth])
+    exp_logits = tf.exp(logits-max_value)
+    exp_sum = tf.tile(tf.reshape((tf.reduce_sum(exp_logits, axis=axis)), [-1, 1]), [1, tile_depth])
+
+    return exp_logits / exp_sum
 
 def focal_loss(one_hot_label,logits,gamma=2,axis=-1):
-
-
+    logits = tf.reshape(logits, [-1,FLAGS.num_classes])
     prediction = soft_max(logits,axis)
-    pos_pred=tf.reduce_sum(prediction*one_hot_label,axis=-1)
+    prediction = tf.reshape(prediction, [-1,FLAGS.num_classes])
+    one_hot_label = tf.reshape(one_hot_label, [-1,FLAGS.num_classes])
+    pos_pred=tf.reduce_sum(prediction*one_hot_label,axis=1)
     focal_factor = tf.math.pow((1.-pos_pred),gamma)
     loss = tf.losses.softmax_cross_entropy(one_hot_label,logits,reduction="none")
     return focal_factor*loss
@@ -119,6 +121,7 @@ def decode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
     :return:
 
     '''
+    loc_scale = tf.convert_to_tensor([10., 10., 5., 5.])
 
     for k, (feature_cls,feature_loc) in enumerate(zip(feature_maps_cls,feature_maps_loc)):
         origin_shape=feature_cls.shape
@@ -146,10 +149,10 @@ def decode_logits(anchor_concat, feature_maps_cls, feature_maps_loc):
     anchor_w = reshape_anchor[:, 3] - reshape_anchor[:, 1]
 
     for  cls_logit, loc_logit in zip(cls_logits_list, loc_logits_list):
-        logit_cy = loc_logit[:, 0]
-        logit_cx = loc_logit[:, 1]
-        logit_h = loc_logit[:, 2]
-        logit_w = loc_logit[:, 3]
+        logit_cy = loc_logit[:, 0] / loc_scale[0]
+        logit_cx = loc_logit[:, 1] / loc_scale[1]
+        logit_h = loc_logit[:, 2] / loc_scale[2]
+        logit_w = loc_logit[:, 3] / loc_scale[3]
 
         pred_cy = logit_cy * anchor_h + anchor_cy
         pred_cx = logit_cx * anchor_w + anchor_cx
@@ -205,6 +208,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
     cls_loss_sum : sum of classification loss
     loc_loss_sum : sum of locaization loss
     '''
+    loc_scale = tf.convert_to_tensor([10., 10., 5., 5.])
 
     for k, (feature_cls,feature_loc) in enumerate(zip(feature_maps_cls,feature_maps_loc)):
         origin_shape=feature_cls.shape
@@ -234,6 +238,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
     gt_offset_list = []
     cls_loss_list=[]
     loc_loss_list=[]
+    pos_weight_list=[]
 
     for num_objects_, boxes_, labels_, cls_logit, loc_logit in zip(num_objects_list, boxes_list, labels_list, cls_logits_list, loc_logits_list):
 
@@ -297,15 +302,15 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         keep_one_pos_label=tf.reduce_sum(tf.cast(positive_mask, dtype=tf.float32), axis=0)
         non_matched_label_index = keep_one_pos_label[2:num_obj]
         non_matched_label_mask = tf.cast(tf.equal(non_matched_label_index,0.), dtype=tf.float32)
-        non_matched_label_mask = tf.pad(tf.reshape(non_matched_label_mask,[-1,1]), tf.convert_to_tensor([[2, max_boxes - (num_obj)],[0,0]]), "CONSTANT")
-        non_matched_label_mask = tf.squeeze(non_matched_label_mask)
-        non_matched_label_mask = tf.tile(tf.reshape(non_matched_label_mask, [1, max_boxes]), [iou.get_shape().as_list()[0], 1])
-        non_matched_label_iou = iou*non_matched_label_mask
+        non_matched_label_mask_1 = tf.pad(tf.reshape(non_matched_label_mask,[-1,1]), tf.convert_to_tensor([[2, max_boxes - (num_obj)],[0,0]]), "CONSTANT")
+        non_matched_label_mask_2 = tf.squeeze(non_matched_label_mask_1)
+        non_matched_label_mask_3 = tf.tile(tf.reshape(non_matched_label_mask_2, [1, max_boxes]), [iou.get_shape().as_list()[0], 1])
+        non_matched_label_iou = iou*non_matched_label_mask_3
 
         pos_anchor_mask = tf.greater(tf.reduce_sum(tf.cast(positive_mask, dtype=tf.float32), axis=1),0.)
-        pos_anchor_mask = tf.cast(pos_anchor_mask,dtype=tf.float32)
-        pos_anchor_mask = tf.tile(tf.reshape(pos_anchor_mask, [iou.get_shape().as_list()[0], 1]),[1, max_boxes] )
-        non_matched_label_iou = non_matched_label_iou*(1.-pos_anchor_mask)
+        pos_anchor_mask_1 = tf.cast(pos_anchor_mask,dtype=tf.float32)
+        pos_anchor_mask_2 = tf.tile(tf.reshape(pos_anchor_mask_1, [iou.get_shape().as_list()[0], 1]),[1, max_boxes] )
+        non_matched_label_iou = non_matched_label_iou*(1.-pos_anchor_mask_2)
 
         non_matched_max_iou_0 = tf.reduce_max(non_matched_label_iou, axis=0)
         # tmp = tf.argmax(non_matched_label_iou,axis=0)
@@ -315,15 +320,16 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         non_matched_max_iou = tf.equal(iou_cutzero,non_matched_max_iou_0)
         non_matched_max_label=tf.argmax(tf.cast(non_matched_max_iou,dtype=tf.float32),axis=1)
 
-        non_matched_max_label_mask=tf.greater(non_matched_max_label,0)
+        non_matched_max_label_mask=tf.greater(non_matched_max_label,1)
         #merge unmatched label
         pos_label_idx=pos_label_idx*(1-tf.cast(non_matched_max_label_mask,dtype=tf.int64))+non_matched_max_label
 
         matched_label = tf.gather(labels_, pos_label_idx)
         matched_boxes = tf.gather(boxes_, pos_label_idx)
 
-        matched_mask = tf.greater(pos_label_idx,0)
+        matched_mask = tf.greater(pos_label_idx,1)
         matched_boxes_mask = tf.stack([matched_mask]*4,axis=1)
+
 
         #convert gt coordinate to offset
         gt_cy = (matched_boxes[:, 0] + matched_boxes[:, 2]) / 2.
@@ -331,13 +337,13 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         gt_h = matched_boxes[:, 2] - matched_boxes[:, 0]
         gt_w = matched_boxes[:, 3] - matched_boxes[:, 1]
 
-        gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h + .1e-5), [-1, 1])
-        gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w + .1e-5), [-1, 1])
+        gt_offset_cy = tf.reshape((gt_cy - anchor_cy) / (anchor_h+ 1E-8), [-1, 1]) * loc_scale[0]
+        gt_offset_cx = tf.reshape((gt_cx - anchor_cx) / (anchor_w+ 1E-8), [-1, 1]) * loc_scale[1]
 
-        gt_offset_h = tf.reshape(tf.log(gt_h / anchor_h + .1e-5) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
-                                 [-1, 1])
-        gt_offset_w = tf.reshape(tf.log(gt_w / anchor_w + .1e-5) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
-                                 [-1, 1])
+        gt_offset_h = tf.reshape(tf.log((gt_h + 1E-8) / (anchor_h + 1E-8)) * (1. - tf.cast(tf.equal(gt_h, 0.), dtype=tf.float32)),
+                                 [-1, 1]) * loc_scale[2]
+        gt_offset_w = tf.reshape(tf.log((gt_w + 1E-8) / (anchor_w + 1E-8)) * (1. - tf.cast(tf.equal(gt_w, 0.), dtype=tf.float32)),
+                                 [-1, 1]) * loc_scale[3]
 
         gt_offset = tf.concat([gt_offset_cy, gt_offset_cx, gt_offset_h, gt_offset_w], axis=1)
 
@@ -347,22 +353,24 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         loc_loss=tf.losses.huber_loss(
             gt_offset,
             loc_logit,
+            weights=tf.cast(matched_boxes_mask,dtype=tf.float32),
             delta=1.0,
             loss_collection=None,
             reduction=tf.losses.Reduction.NONE
         )
-        loc_loss = loc_loss / tf.reduce_sum(tf.cast(matched_mask,dtype=tf.float32))
+        pos_sum = tf.reduce_sum(tf.cast(matched_mask, dtype=tf.float32))
 
         one_hot_label=tf.one_hot(tf.cast(matched_label,dtype=tf.int32),depth=num_classes)
         cls_loss=focal_loss(one_hot_label,cls_logit,gamma=2)
 
-        cls_loss = cls_loss / tf.reduce_sum(tf.cast(matched_mask, dtype=tf.float32))
-
         cls_loss_list.append(cls_loss)
         loc_loss_list.append(loc_loss)
+        pos_weight_list.append(pos_sum)
 
-    cls_loss_sum = tf.reduce_sum(tf.stack(cls_loss_list))
-    loc_loss_sum = tf.reduce_sum(tf.stack(loc_loss_list))
+    pos_weight_sum = tf.reduce_sum(tf.stack(pos_weight_list))
+    pos_weight_sum = tf.maximum(pos_weight_sum, 1.0)
+    cls_loss_sum = tf.reduce_sum(tf.stack(cls_loss_list))/pos_weight_sum
+    loc_loss_sum = tf.reduce_sum(tf.stack(loc_loss_list))/pos_weight_sum
     return cls_loss_sum, loc_loss_sum
 #
 # #

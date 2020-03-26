@@ -20,7 +20,7 @@ tf.app.flags.DEFINE_string('mode', "train",'')
 
 tf.app.flags.DEFINE_string('tfrecords_dir', "path/to/tfrecords/folder",'')
 
-tf.app.flags.DEFINE_integer('image_size', 512,'')
+tf.app.flags.DEFINE_integer('image_size', 300,'')
 
 tf.app.flags.DEFINE_integer('max_boxes', 120,'')
 
@@ -36,23 +36,26 @@ tf.app.flags.DEFINE_integer('input_queue_memory_factor', 4,'')
 
 tf.app.flags.DEFINE_integer('num_classes', 91,"")
 
-tf.app.flags.DEFINE_integer('batch_size', 4,"")
+tf.app.flags.DEFINE_integer('batch_size', 16,"")
 
 tf.app.flags.DEFINE_integer('num_gpus', 1,'')
 
-tf.app.flags.DEFINE_float('learning_rate', 0.001, '')
+tf.app.flags.DEFINE_float('learning_rate', 0.004, '')
 
 tf.app.flags.DEFINE_float('random_flip_prob', 0.5, '')
 
 tf.app.flags.DEFINE_float('random_pad_prob', 0.4, '')
 
+tf.app.flags.DEFINE_float('crop_prop', 0.15, '')
+
 tf.app.flags.DEFINE_float('positive_threshold', 0.5, '')
 
 tf.app.flags.DEFINE_float('negative_threshold', 0.5, '')
 
+
 ##validation
 
-tf.app.flags.DEFINE_float('val_nms_threshold', 1.0, '')
+tf.app.flags.DEFINE_float('val_nms_threshold', 0.6, '')
 
 tf.app.flags.DEFINE_float('val_matching_threshold', 0.5, '')
 

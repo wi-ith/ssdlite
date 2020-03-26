@@ -79,7 +79,8 @@ def train():
 
         # Get images and labels
         # for train
-        images, labels, boxes, num_objects = input.distorted_inputs(FLAGS.batch_size)
+        with tf.name_scope('train_images'):
+            images, labels, boxes, num_objects = input.distorted_inputs(FLAGS.batch_size)
 
         batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
               [images, labels, boxes, num_objects], capacity=2 * FLAGS.num_gpus)
@@ -124,7 +125,11 @@ def train():
         #validation
         val_images, val_labels, val_boxes, val_num_objects = input.inputs(1)
         with tf.device('/gpu:0'):
-            cls_pred, loc_pred = ssd.inference(val_images)
+            with tf.name_scope('eval_images'):
+              cls_pred, loc_pred = ssd.inference(val_images)
+
+        summaries.extend(tf.get_collection(tf.GraphKeys.SUMMARIES, 'train_images'))
+        summaries.extend(tf.get_collection(tf.GraphKeys.SUMMARIES, 'eval_images'))
 
 
         # Add a summary to track the learning rate.
@@ -184,34 +189,32 @@ def train():
             # Start the queue runners.
             sv.start_queue_runners(sess=sess)
 
-
-
             for step in xrange(FLAGS.max_steps):
                 start_time = time.time()
-                # sess.run(train_op)
-                # loss_value, cls_loss_value, loc_loss_value = sess.run([loss,cls_loss,loc_loss])
-                # duration = time.time() - start_time
+                sess.run(train_op)
+                loss_value, cls_loss_value, loc_loss_value = sess.run([loss,cls_loss,loc_loss])
+                duration = time.time() - start_time
 
-                # assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
+                assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
-                # if step % 30 == 0:
-                #     num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
-                #     examples_per_sec = num_examples_per_step / duration
-                #     sec_per_batch = duration / FLAGS.num_gpus
-                    #
-                    # format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
-                    #             'sec/batch)')
-                    # print (format_str % (datetime.now(), step, loss_value,
-                    #                      examples_per_sec, sec_per_batch))
-                    # print(cls_loss_value, loc_loss_value)
+                if step % 100 == 0:
+                    num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
+                    examples_per_sec = num_examples_per_step / duration
+                    sec_per_batch = duration / FLAGS.num_gpus
+
+                    format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
+                                'sec/batch)')
+                    print (format_str % (datetime.now(), step, loss_value,
+                                         examples_per_sec, sec_per_batch))
+                    print(cls_loss_value, loc_loss_value)
 
 
                 if step % 100 == 0:
                     summary_str = sess.run(summary_op)
 
-                # if step % int(FLAGS.num_train / FLAGS.batch_size) == 0 and step!=0:
+                if step % (int(FLAGS.num_train / FLAGS.batch_size)*4) == 0 and step!=0:
                 #if step % 1000 == 0 and step!=0:
-                if True:
+                #if True:
                     print('start validation')
                     entire_TF=[]
                     entire_score=[]
