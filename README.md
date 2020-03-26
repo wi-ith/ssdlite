@@ -1,1 +1,2 @@
-# DL_thesis
+# SSD lite MobilenetV2
+# python tensorflow
