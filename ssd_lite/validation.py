@@ -2,38 +2,6 @@ import numpy as np
 import tensorflow as tf
 import flags
 FLAGS = tf.app.flags.FLAGS
-#
-# GT_loc=np.array([[0.2,0.2,0.47,0.47],[0.5,0.2,0.77,0.47],[0.47,0.47,0.8,0.85],[0.37,0.67,0.5,1.0]])
-# GT_cls=np.array([1,1,2,2])
-#
-# loc_pred = [[0.21, 0.19, 0.51, 0.5],
-#        [0.18, 0.17, 0.47, 0.48],
-#        [0.22, 0.23, 0.53, 0.54],
-#        [0.51, 0.5, 0.8, 0.9],
-#        [0.46, 0.45, 0.76, 0.86],
-#        [0.56, 0.55, 0.8, 0.9],
-#        [0.51, 0.19, 0.81, 0.5],
-#        [0.48, 0.17, 0.77, 0.48],
-#        [0.52, 0.23, 0.83, 0.54],
-#        [0.41, 0.7, 0.5, 0.95],
-#        [0.36, 0.65, 0.46, 0.86],
-#        [0.46, 0.75, 0.5, 0.99],
-#        [0,0,0,0],
-#        [0,0,0,0]]
-# cls_pred = [[0.005, 0.98, 0.005, 0.005, 0.005],
-#        [0.1, 0.6, 0.1, 0.1, 0.1],
-#        [0.1, 0.4, 0.2, 0.2, 0.1],
-#        [0.05, 0.05, 0.8, 0.05, 0.05],
-#        [0.1, 0.1, 0.6, 0.1, 0.1],
-#        [0.1, 0.1, 0.7, 0.05, 0.05],
-#        [0.01, 0.96, 0.01, 0.01, 0.01],
-#        [0.1, 0.5, 0.2, 0.1, 0.1],
-#        [0.1, 0.7, 0.1, 0.05, 0.05],
-#        [0.05, 0.1, 0.7, 0.1, 0.05],
-#        [0.0, 0.05, 0.9, 0.025, 0.025],
-#        [0.1, 0.2, 0.5, 0.15, 0.05],
-#        [0.90,0.025,0.025,0.025,0.025],
-#        [0.90,0.025,0.025,0.025,0.025]]
 
 def one_image_validation(GT_loc,
                          GT_cls,
@@ -76,12 +44,13 @@ def one_image_validation(GT_loc,
 
         return iou
 
-    max_output=1000
+    max_output=100
+    total_max_output = 100
     nms_threshold=FLAGS.val_nms_threshold
+    nms_score_threshold=1e-8
 
-    cls_pred=np.array(cls_pred)
+    cls_pred=np.copy(np.array(cls_pred[:,1:]))
     loc_pred=np.array(loc_pred)
-
     cls_idx = np.argmax(cls_pred,axis=1)
 
 
@@ -90,35 +59,85 @@ def one_image_validation(GT_loc,
 
     for k in range(FLAGS.num_classes):
         k_cls_idx = np.where(cls_idx==k)
-        k_cls_pred = cls_pred[k_cls_idx]
-        k_cls_loc = loc_pred[k_cls_idx]
+        k_cls_pred = cls_pred[k_cls_idx, :]
+        k_cls_loc = loc_pred[k_cls_idx, :]
         clsPred_by_class.append(k_cls_pred)
         locPred_by_class.append(k_cls_loc)
 
     k_class_nms_loc = []
     k_class_nms_score = []
+    k_class_nms_pred = []
+
     for k_class_clsPred, k_class_locPred in zip(clsPred_by_class,locPred_by_class):
 
+        k_class_clsPred = np.reshape(k_class_clsPred, [-1, FLAGS.num_classes - 1])
+        k_class_locPred = np.reshape(k_class_locPred, [-1, 4])
         score = np.max(k_class_clsPred, axis=1)
+        score = score[np.where(score > nms_score_threshold)]
         sorted_idx = np.argsort(score)[::-1]
         sorted_loc = k_class_locPred[sorted_idx,:]
+        sorted_pred = k_class_clsPred[sorted_idx,:]
         sorted_score = score[sorted_idx]
+
 
         if len(sorted_loc) > max_output:
             sorted_loc = sorted_loc[:max_output]
+            sorted_pred = sorted_pred[:max_output]
             sorted_score = sorted_score[:max_output]
 
-        valid_mask = np.ones(sorted_score.shape)
+        valid_mask = np.ones(sorted_score.shape, dtype=np.int32)
 
+        selected = []
         for k in range(len(valid_mask)):
-            if valid_mask[k]:
-                iou_=iou(sorted_loc[k],sorted_loc[k+1:])
-                iou_=np.squeeze(iou_)
-                valid_mask[k + 1:] = np.logical_and((valid_mask[k + 1:]==1),(iou_ < nms_threshold))
+            if k == 0:
+                selected.append(k)
+                selected = np.array(selected)
+            else:
+                iou_ = iou(sorted_loc[selected, :], sorted_loc[k, :])
+                if np.max(iou_) < nms_threshold:
+                    selected = np.concatenate([selected, np.array([k])],axis=0)
 
-        valid_idx = np.where(valid_mask == 1)
+        valid_idx = selected
         k_class_nms_loc.append(sorted_loc[valid_idx])
+        k_class_nms_pred.append(sorted_pred[valid_idx])
         k_class_nms_score.append(sorted_score[valid_idx])
+
+
+    # clip window and remove zero area
+
+    for k_cls,(one_nms_score, one_nms_loc, one_nms_pred) in enumerate(zip(k_class_nms_score,k_class_nms_loc,k_class_nms_pred)):
+        one_nms_loc[:, 0] = np.maximum(np.minimum(one_nms_loc[:, 0], 1.), 0.)
+        one_nms_loc[:, 1] = np.maximum(np.minimum(one_nms_loc[:, 1], 1.), 0.)
+        one_nms_loc[:, 2] = np.maximum(np.minimum(one_nms_loc[:, 2], 1.), 0.)
+        one_nms_loc[:, 3] = np.maximum(np.minimum(one_nms_loc[:, 3], 1.), 0.)
+        one_cls_area = (one_nms_loc[:,2] - one_nms_loc[:,0]) * (one_nms_loc[:,3] - one_nms_loc[:,1])
+        non_zero_area_idx = np.where(one_cls_area > 0.)
+        k_class_nms_score[k_cls] = one_nms_score[non_zero_area_idx]
+        k_class_nms_loc[k_cls] = one_nms_loc[non_zero_area_idx]
+        k_class_nms_pred[k_cls] = one_nms_pred[non_zero_area_idx]
+
+    box_ = np.concatenate([box_ for box_ in k_class_nms_loc], 0)
+    score_ = np.concatenate([score_ for score_ in k_class_nms_score], 0)
+    pred_ = np.concatenate([pred_ for pred_ in k_class_nms_pred],0)
+    sort_all_nms_idx = np.argsort(score_)[::-1]
+    cur_max_output=np.minimum(total_max_output,score_.shape[0])
+    sorted_all_score = score_[sort_all_nms_idx][:cur_max_output]
+    sorted_all_box = box_[sort_all_nms_idx][:cur_max_output]
+    sorted_all_pred = pred_[sort_all_nms_idx][:cur_max_output]
+
+    nms_cls_idx = np.argmax(sorted_all_pred, axis=1)
+
+    k_class_nms_score = []
+    k_class_nms_loc = []
+
+    for k in range(FLAGS.num_classes-1):
+        k_cls_nms_idx = np.where(nms_cls_idx==k)
+        k_cls_nms_pred = sorted_all_pred[k_cls_nms_idx]
+        k_cls_nms_score = np.max(k_cls_nms_pred, axis=1)
+
+        k_cls_nms_loc = sorted_all_box[k_cls_nms_idx]
+        k_class_nms_score.append(k_cls_nms_score)
+        k_class_nms_loc.append(k_cls_nms_loc)
 
     #non maximum suppresion
 
@@ -126,8 +145,9 @@ def one_image_validation(GT_loc,
     TF_score_by_class=[]
     num_GT_by_class=[]
     GT_loc = GT_loc[:num_objects,:]
-    GT_cls = GT_cls[:num_objects]
-    for k in range(FLAGS.num_classes):
+    GT_cls = GT_cls[:num_objects] - 1
+
+    for k in range(FLAGS.num_classes-1):
         k_cls_index = np.where(GT_cls == k)
         num_GT_by_class.append(np.sum(np.int32(GT_cls == k)))
 
@@ -154,51 +174,10 @@ def one_image_validation(GT_loc,
 
     return TF_array_by_class, TF_score_by_class, num_GT_by_class
 
-
-# import numpy as np
-# num_classes=5
-# TF_array_1 = [[],[],[1,1,0,1,1,0],[1,1,0,1],[]]
-# TF_score_1 = [[],[],[0.76,0.55,0.49,0.98,0.69,0.72],[0.1,0.2,0.3,0.92],[]]
-# TF_array_2 = [[],[0,1,1,1,0],[0,1,1,0,1],[1,1],[1]]
-# TF_score_2 = [[],[0.56,0.66,0.79,0.28,0.91],[0.19,0.33,0.29,0.61,0.55],[0.57,0.42],[0.22]]
-# num_GT_1 = [0,0,4,4,0]
-# num_GT_2 = [0,5,3,3,1]
-# entire_TF=[]
-# entire_score=[]
-# entire_numGT=[]
-
-def cover_up(list, idx, value):
-    if list[idx] < value and idx >= 0:
-        list[idx]=value
-        cover_up(list, idx-1,value)
-    else:
-        return list
-
-
-# for k in range(2):
-#     if k ==0:
-#         TF_array = TF_array_1
-#         TF_score = TF_score_1
-#         num_GT = num_GT_1
-#     else:
-#         TF_array = TF_array_2
-#         TF_score = TF_score_2
-#         num_GT = num_GT_2
-#
-#     if len(entire_TF) == 0:
-#         entire_TF = TF_array
-#         entire_score = TF_score
-#         entire_numGT = num_GT
-#     else:
-#         for k_cls in range(num_classes):
-#             entire_TF[k_cls].extend(TF_array[k_cls])
-#             entire_score[k_cls].extend(TF_score[k_cls])
-#             entire_numGT[k_cls]+=num_GT[k_cls]
-
 def compute_AP(entire_score,entire_TF,entire_numGT):
 
     sorted_entire_TF=[]
-    for x_cls in range(FLAGS.num_classes):
+    for x_cls in range(FLAGS.num_classes-1):
         sorted_score_idx=np.argsort(entire_score[x_cls])[::-1]
         x_cls_TF=np.copy(entire_TF[x_cls])
         sorted_entire_TF.append(x_cls_TF[sorted_score_idx])
@@ -209,29 +188,24 @@ def compute_AP(entire_score,entire_TF,entire_numGT):
         ac_sum = 0
         k_cls_precision = []
         k_cls_recall = []
+
         for num_pred, TF in enumerate(k_cls_TF):
             ac_sum += TF
             precision = ac_sum / (num_pred + 1)
             recall = ac_sum / (num_GT)
             k_cls_precision.append(precision)
             k_cls_recall.append(recall)
-            if num_pred > 0:
-                cover_cnt=num_pred-1
-                while(cover_cnt>=0):
-                    if k_cls_precision[cover_cnt] < precision:
-                        k_cls_precision[cover_cnt]=precision
-                        cover_cnt=cover_cnt-1
-                    elif cover_cnt<0:
-                        break
-                    else:
-                        break
 
-                # cover_up(k_cls_precision, num_pred - 1, precision)
+        for k_ in range(len(k_cls_precision))[::-1]:
+            if k_== len(k_cls_precision)-1:
+                continue
+            k_cls_precision[k_]=np.maximum(k_cls_precision[k_],k_cls_precision[k_+1])
         entire_presicion.append(k_cls_precision)
         entire_recall.append(k_cls_recall)
 
     entire_AP = []
     entire_AP_sum = []
+
     for precision_k, recall_k in zip(entire_presicion, entire_recall):
         k_cls_AP_list=[]
         for i_, (precision_, recall_) in enumerate(zip(precision_k,recall_k)):
@@ -239,7 +213,7 @@ def compute_AP(entire_score,entire_TF,entire_numGT):
                 AP_ = precision_*recall_
             else:
                 AP_ = precision_*(recall_-recall_k[i_-1])
-                k_cls_AP_list.append(AP_)
+            k_cls_AP_list.append(AP_)
 
         k_cls_AP=np.sum(np.array(k_cls_AP_list))
         entire_AP.append(k_cls_AP_list)

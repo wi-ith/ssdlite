@@ -191,7 +191,7 @@ def train():
 
             for step in xrange(FLAGS.max_steps):
                 start_time = time.time()
-                sess.run(train_op)
+                # sess.run(train_op)
                 loss_value, cls_loss_value, loc_loss_value = sess.run([loss,cls_loss,loc_loss])
                 duration = time.time() - start_time
 
@@ -208,19 +208,18 @@ def train():
                                          examples_per_sec, sec_per_batch))
                     print(cls_loss_value, loc_loss_value)
 
-
                 if step % 100 == 0:
                     summary_str = sess.run(summary_op)
 
-                if step % (int(FLAGS.num_train / FLAGS.batch_size)*4) == 0 and step!=0:
-                #if step % 1000 == 0 and step!=0:
-                #if True:
+                # if step % (int(FLAGS.num_train / FLAGS.batch_size)*4) == 0 and step!=0:
+                if step % 1000 == 0 and step!=0:
+                # if True:
                     print('start validation')
                     entire_TF=[]
                     entire_score=[]
                     entire_numGT=[]
                     for val_step in range(FLAGS.num_validation):
-                    #for val_step in range(10):
+                    # for val_step in range(10):
                         if val_step%500==0:
                             print(val_step,' / ',FLAGS.num_validation)
                         val_GT_boxes, val_GT_cls, val_loc_pred, val_cls_pred, num_objects = sess.run([val_boxes,val_labels,loc_pred,cls_pred,val_num_objects])
@@ -236,7 +235,7 @@ def train():
                             entire_score = TF_score
                             entire_numGT = num_GT
                         else:
-                            for k_cls in range(FLAGS.num_classes):
+                            for k_cls in range(FLAGS.num_classes-1):
                                 entire_TF[k_cls]=np.concatenate([entire_TF[k_cls],TF_array[k_cls]],axis=0)
                                 entire_score[k_cls]=np.concatenate([entire_score[k_cls],TF_score[k_cls]],axis=0)
                                 # entire_score[k_cls].extend(TF_score[k_cls])
@@ -260,4 +259,3 @@ def main(argv=None):  # pylint: disable=unused-argument
 
 if __name__ == '__main__':
     tf.app.run()
-
