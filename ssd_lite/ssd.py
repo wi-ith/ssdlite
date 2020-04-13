@@ -5,11 +5,8 @@ Created on Wed Feb  5 01:04:34 2020
 @author: wi-ith
 """
 
-import re
 
 import tensorflow as tf
-
-import input
 
 import model
 
