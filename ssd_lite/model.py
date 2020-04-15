@@ -135,10 +135,6 @@ class MobileNetV2(object):
 
             self.i += 1
             stride = 2 if subsample else 1
-            # if channels > 159:
-            #   atrous_rate=2
-            # else:
-            #   atrous_rate=1
 
             if up_sample_rate > 1:
                 expand_ = tc.layers.conv2d(input, up_sample_rate * input.get_shape().as_list()[-1], 1,

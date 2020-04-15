@@ -246,12 +246,7 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         # ground truth for ignore, negative anchor
         boxes_ = tf.concat([[[0,0,0,0],[0,0,0,0]],boxes_[:-2,:]],axis=0)
 
-        #num_obj = tf.constant(boxes.get_shape().as_list()[0])
         num_obj = num_objects_ + 2
-
-
-        # num_obj = num_objects_
-        # boxes_ = tf.pad(boxes_, tf.convert_to_tensor([[0, max_boxes - num_obj], [0, 0]]), "CONSTANT")
 
         paded_boxes = tf.reshape(boxes_, [max_boxes, 4])
 
@@ -313,7 +308,6 @@ def anchor_matching_cls_loc_loss(anchor_concat,
         non_matched_label_iou = non_matched_label_iou*(1.-pos_anchor_mask_2)
 
         non_matched_max_iou_0 = tf.reduce_max(non_matched_label_iou, axis=0)
-        # tmp = tf.argmax(non_matched_label_iou,axis=0)
         non_matched_max_iou_0 = tf.tile(tf.reshape(non_matched_max_iou_0,[1,max_boxes]),[iou.get_shape().as_list()[0], 1])
         iou_zero_mask = tf.equal(iou,0.)
         iou_cutzero = iou-tf.cast(iou_zero_mask,dtype=tf.float32)

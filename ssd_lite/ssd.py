@@ -17,40 +17,6 @@ import tensorflow.contrib.slim as slim
 
 FLAGS = tf.app.flags.FLAGS
 
-TOWER_NAME = 'tower'
-
-
-
-def _variable_on_cpu(name, shape, initializer):
-
-  """Helper to create a Variable stored on CPU memory.
-
-
-
-  Args:
-
-    name: name of the variable
-
-    shape: list of ints
-
-    initializer: initializer for Variable
-
-
-
-  Returns:
-
-    Variable Tensor
-
-  """
-
-  with tf.device('/cpu:0'):
-
-    dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
-
-    var = tf.get_variable(name, shape, initializer=initializer, dtype=dtype)
-
-  return var
-
 
 
 def inference(images):
@@ -83,10 +49,9 @@ def loss(images, labels, boxes, num_objects):
 
         train_model = model.MobileNetV2(is_training=True, input_size=FLAGS.image_size)
 
-        #depth 960, 1280, 512, 256, 256, 128
         feat_list=train_model._build_model(images)
         ratio_list = [(1.0, 2.0, 1.0 / 2.0)] + [(1.0, 2.0, 1.0 / 2.0, 3.0, 1.0 / 3.0, 1.0)] * 5
-        #boxpredictor
+
         box_output_list=[]
         cls_output_list=[]
         for k, (ratio, feat) in enumerate(zip(ratio_list, feat_list)):

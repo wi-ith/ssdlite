@@ -12,14 +12,6 @@ FLAGS = tf.app.flags.FLAGS
 
 
 def safe_divide(numerator, denominator, name):
-    """Divides two values, returning 0 if the denominator is <= 0.
-    Args:
-      numerator: A real `Tensor`.
-      denominator: A real `Tensor`, with dtype matching `numerator`.
-      name: Name for the returned op.
-    Returns:
-      0 if `denominator` <= 0, else `numerator` / `denominator`
-    """
     return tf.where(
         math_ops.greater(denominator, 0),
         math_ops.divide(numerator, denominator),
@@ -28,10 +20,7 @@ def safe_divide(numerator, denominator, name):
 
 
 def bboxes_resize(boxes, window, scope=None):
-    """Resize bounding boxes based on a reference bounding box,
-    assuming that the latter is [0, 0, 1, 1] after transform. Useful for
-    updating a collection of boxes after cropping an image.
-    """
+
     with tf.name_scope(scope, 'ChangeCoordinateFrame'):
         win_height = window[2] - window[0]
         win_width = window[3] - window[1]
@@ -51,28 +40,18 @@ def bboxes_resize(boxes, window, scope=None):
             return scaled_boxlist
 
 def bboxes_intersection(bbox_ref, bboxes, name=None):
-    """Compute relative intersection between a reference box and a
-    collection of bounding boxes. Namely, compute the quotient between
-    intersection area and box area.
 
-    Args:
-      bbox_ref: (N, 4) or (4,) Tensor with reference bounding box(es).
-      bboxes: (N, 4) Tensor, collection of bounding boxes.
-    Return:
-      (N,) Tensor with relative intersection.
-    """
     with tf.name_scope(name, 'bboxes_intersection'):
-        # Should be more efficient to first transpose.
         bboxes = tf.transpose(bboxes)
         bbox_ref = tf.transpose(bbox_ref)
-        # Intersection bbox and volume.
+
         int_ymin = tf.maximum(bboxes[0], bbox_ref[0])
         int_xmin = tf.maximum(bboxes[1], bbox_ref[1])
         int_ymax = tf.minimum(bboxes[2], bbox_ref[2])
         int_xmax = tf.minimum(bboxes[3], bbox_ref[3])
         h = tf.maximum(int_ymax - int_ymin, 0.)
         w = tf.maximum(int_xmax - int_xmin, 0.)
-        # Volumes.
+
         inter_vol = h * w
         bboxes_vol = (bboxes[2] - bboxes[0]) * (bboxes[3] - bboxes[1])
         scores = safe_divide(inter_vol, bboxes_vol, 'intersection')
@@ -81,13 +60,7 @@ def bboxes_intersection(bbox_ref, bboxes, name=None):
 def bboxes_filter_overlap(labels, bboxes, im_box_rank2,
                           threshold=0.5, assign_negative=False,
                           scope=None):
-    """Filter out bounding boxes based on (relative )overlap with reference
-    box [0, 0, 1, 1].  Remove completely bounding boxes, or assign negative
-    labels to the one outside (useful for latter processing...).
 
-    Return:
-      labels, bboxes: Filtered (or newly assigned) elements.
-    """
     with tf.name_scope(scope, 'bboxes_filter', [labels, bboxes]):
         scores = bboxes_intersection(im_box_rank2,
                                      bboxes)

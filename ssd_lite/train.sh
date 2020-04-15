@@ -1,9 +1,9 @@
 CUDA_VISIBLE_DEVICES=0 \
 python3 train.py \
-  --ckpt_save_path=./ckpt/0407/ \
-  --pretrained_ckpt_path=../pretrained/ssdlite_mobilenet/model.ckpt \
+  --ckpt_save_path=./ckpt \
+  --pretrained_ckpt_path=../pretrained/mobilenet_backbone/model.ckpt \
   --mode=train \
-  --tfrecords_dir=/home/kdg/tfrecords/google_mscoco/110k_8k/ \
+  --tfrecords_dir=path/to/tfrecords \
   --image_size=300 \
   --max_boxes=100 \
   --num_train=32147 \

@@ -25,10 +25,7 @@ def decode_jpeg(image_buffer, channels, scope=None):
     """
     with tf.name_scope(values=[image_buffer], name=scope,
                        default_name='decode_jpeg'):
-        # Decode the string as an RGB or GRAY JPEG.
-        # Note that the resulting image contains an unknown height and width
-        # that is set dynamically by decode_jpeg. In other words, the height
-        # and width of image is unknown at compile-time.
+
         image = tf.image.decode_jpeg(image_buffer, channels)
         return image
 
@@ -81,14 +78,9 @@ def parse_tfrecords(example_serialized):
     bbox = tf.concat(axis=0, values=[ymin, xmin, ymax, xmax])
     bbox = tf.transpose(bbox, [1, 0])
 
-    # class_name = context['class/text'].values
     class_id = tf.cast(context['image/object/class/label'].values, dtype=tf.int32)
 
-    # height = context['image/height']
-    # width = context['image/width']
-    # filename = context['image/filename']
-
-    return image_encoded, class_id, bbox  # height, width, filename
+    return image_encoded, class_id, bbox
 
 
 def distorted_inputs(batch_size):
@@ -145,21 +137,12 @@ def _get_images_labels(batch_size, split, num_readers, num_preprocess_threads=No
     if num_readers < 1:
         raise ValueError('Please make num_readers at least 1')
 
-    # Approximate number of examples per shard.
     examples_per_shard = 300
-    # Size the random shuffle queue to balance between good global
-    # mixing (more examples) and memory use (fewer examples).
-    # 1 image uses 299*299*3*4 bytes = 1MB
-    # The default input_queue_memory_factor is 16 implying a shuffling queue
-    # size: examples_per_shard * 16 * 1MB = 17.6GB
     min_queue_examples = examples_per_shard * FLAGS.input_queue_memory_factor
     if split == 'train':
-        # examples_queue = tf.RandomShuffleQueue(
-        #     capacity=min_queue_examples + 3 * batch_size,
-        #     min_after_dequeue=min_queue_examples,
-        #     dtypes=[tf.string])
-        examples_queue = tf.FIFOQueue(
-            capacity=examples_per_shard + 3 * batch_size,
+        examples_queue = tf.RandomShuffleQueue(
+            capacity=min_queue_examples + 3 * batch_size,
+            min_after_dequeue=min_queue_examples,
             dtypes=[tf.string])
 
     elif split == 'validation':
@@ -222,7 +205,6 @@ def _get_images_labels(batch_size, split, num_readers, num_preprocess_threads=No
 
 def image_augmentation(image_encoded, class_id, bbox, split, thread_id=0):
     if split == 'train':
-        # Since having only samll dataset, augment dataset as much as possible
         images, labels, boxes, num_objects = train_augmentation(image_encoded, class_id, bbox)
 
     elif split == 'validation':
@@ -232,7 +214,6 @@ def image_augmentation(image_encoded, class_id, bbox, split, thread_id=0):
 
 
 def train_augmentation(image_encoded, labels, boxes):
-    ##Flip 50% -> crop 85% -> pad 40%
 
     with tf.name_scope('augmented_image'):
         if boxes is None:
@@ -243,12 +224,8 @@ def train_augmentation(image_encoded, labels, boxes):
                                  dtype=tf.int32,
                                  shape=[1])
 
-        # Each bounding box has shape [num_boxes, box coords] and
-        # the coordinates are ordered [ymin, xmin, ymax, xmax].
-
         image = tf.to_float(image_encoded)
 
-        # Random Horizontal Flip
         with tf.name_scope('RandomHorizontalFlip'):
             random_flip_prob = FLAGS.random_flip_prob
 
@@ -258,17 +235,6 @@ def train_augmentation(image_encoded, labels, boxes):
                 return image_flipped
 
             def _flip_boxes_left_right(boxes):
-                """Left-right flip the boxes.
-
-                Args:
-                  boxes: rank 2 float32 tensor containing the bounding boxes -> [N, 4].
-                         Boxes are in normalized form meaning their coordinates vary
-                         between [0, 1].
-                         Each row is in the form of [ymin, xmin, ymax, xmax].
-
-                Returns:
-                  Flipped boxes.
-                """
                 ymin, xmin, ymax, xmax = tf.split(value=boxes, num_or_size_splits=4, axis=1)
                 flipped_xmin = tf.subtract(1.0, xmax)
                 flipped_xmax = tf.subtract(1.0, xmin)
@@ -283,17 +249,15 @@ def train_augmentation(image_encoded, labels, boxes):
                 seed=None,
                 name=None
             )
-            # flip image
+
             image = tf.cond(tf.greater_equal(random, random_flip_prob),
                             lambda: image,
                             lambda: _flip_image(image))
 
-            # flip boxes
             boxes = tf.cond(tf.greater_equal(random, random_flip_prob),
                             lambda: boxes,
                             lambda: _flip_boxes_left_right(boxes))
 
-        # SSD Random Crop
         with tf.name_scope('SSDRandomCrop'):
             min_object_covered = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0)
             overlap_threshold = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0)
@@ -313,22 +277,11 @@ def train_augmentation(image_encoded, labels, boxes):
                                                    overlap_thresh=selected_overlap_threshold)
                                                )
 
-        # Random Pad Image
         with tf.name_scope('RandomPadImage'):
             random_pad_prob = FLAGS.random_pad_prob
             max_boxes = FLAGS.max_boxes
 
             def _random_integer(minval, maxval, seed):
-                """Returns a random 0-D tensor between minval and maxval.
-
-                Args:
-                  minval: minimum value of the random tensor.
-                  maxval: maximum value of the random tensor.
-                  seed: random seed.
-
-                Returns:
-                  A random 0-D tensor between minval and maxval.
-                """
                 return tf.random_uniform(
                     [], minval=minval, maxval=maxval, dtype=tf.int32, seed=seed)
 
@@ -381,7 +334,6 @@ def train_augmentation(image_encoded, labels, boxes):
                     target_height=target_height,
                     target_width=target_width)
 
-                # Setting color of the padded pixels
                 image_ones = tf.ones_like(image)
                 image_ones_padded = tf.image.pad_to_bounding_box(
                     image_ones,
@@ -392,7 +344,6 @@ def train_augmentation(image_encoded, labels, boxes):
                 image_color_padded = (1.0 - image_ones_padded) * pad_color
                 new_image += image_color_padded
 
-                # setting boxes
                 new_window = tf.to_float(
                     tf.stack([
                         -offset_height, -offset_width, target_height - offset_height,
@@ -401,7 +352,6 @@ def train_augmentation(image_encoded, labels, boxes):
                 new_window /= tf.to_float(
                     tf.stack([image_height, image_width, image_height, image_width]))
 
-                # reset the coordinate system to the padded one
                 new_boxes = boxes - [new_window[0], new_window[1], new_window[0], new_window[1]]
                 norm_y = 1.0 / (new_window[2] - new_window[0])
                 norm_x = 1.0 / (new_window[3] - new_window[1])
