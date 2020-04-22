@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+@author: wi-ith
+"""
 import numpy as np
 import tensorflow as tf
 import flags

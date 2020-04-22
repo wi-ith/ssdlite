@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Feb  6 01:05:20 2020
-
 @author: wi-ith
 """
 
